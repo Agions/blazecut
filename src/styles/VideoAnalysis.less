@@ -1,0 +1,431 @@
+@import './variables.less';
+
+.video-analysis-container {
+  padding: 24px;
+  height: 100%;
+  overflow: auto;
+
+  .page-header {
+    margin-bottom: 24px;
+
+    .description {
+      color: rgba(0, 0, 0, 0.65);
+    }
+  }
+
+  // 视频选择卡片样式
+  .video-upload-card {
+    height: 100%;
+    
+    .video-upload-area {
+      margin-bottom: 16px;
+      
+      .upload-placeholder {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 200px;
+        border: 1px dashed #d9d9d9;
+        border-radius: 8px;
+        background-color: #fafafa;
+        cursor: pointer;
+        transition: border-color 0.3s;
+        
+        &:hover {
+          border-color: #1890ff;
+        }
+        
+        .upload-icon {
+          font-size: 48px;
+          color: #1890ff;
+          margin-bottom: 16px;
+        }
+        
+        p {
+          margin: 0;
+          color: rgba(0, 0, 0, 0.85);
+          font-size: 16px;
+        }
+        
+        .upload-hint {
+          margin-top: 8px;
+          color: rgba(0, 0, 0, 0.45);
+          font-size: 14px;
+        }
+      }
+      
+      .selected-video {
+        padding: 16px;
+        border: 1px solid #f0f0f0;
+        border-radius: 8px;
+        background-color: #fafafa;
+        
+        .video-info {
+          display: flex;
+          align-items: center;
+          margin-bottom: 16px;
+          
+          .video-icon {
+            font-size: 32px;
+            color: #1890ff;
+            margin-right: 16px;
+          }
+          
+          .video-details {
+            flex: 1;
+            
+            .video-name {
+              font-weight: 500;
+              font-size: 16px;
+              margin-bottom: 4px;
+            }
+            
+            .video-path {
+              color: rgba(0, 0, 0, 0.45);
+              font-size: 12px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+          }
+        }
+      }
+    }
+    
+    // 关键帧处理状态
+    .keyframe-loading {
+      text-align: center;
+      padding: 20px 0;
+    }
+    
+    // 视频预览区域
+    .video-preview-section {
+      margin: 16px 0;
+      
+      // 视频元数据
+      .video-metadata {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 16px;
+        padding: 8px;
+        background-color: #f5f5f5;
+        border-radius: 4px;
+        
+        .metadata-item {
+          display: flex;
+          align-items: center;
+          
+          .metadata-label {
+            font-weight: 500;
+            margin-right: 6px;
+            color: rgba(0, 0, 0, 0.65);
+          }
+          
+          .metadata-value {
+            color: rgba(0, 0, 0, 0.85);
+          }
+        }
+      }
+      
+      // 关键帧预览轮播图
+      .keyframe-preview {
+        margin-top: 16px;
+        
+        .keyframe-slide {
+          height: 200px;
+          padding: 0 10px;
+          position: relative;
+          
+          .keyframe-info {
+            position: absolute;
+            top: 8px;
+            right: 18px;
+            z-index: 1;
+            background-color: rgba(0, 0, 0, 0.6);
+            border-radius: 4px;
+            padding: 4px 8px;
+            display: flex;
+            gap: 8px;
+            
+            .keyframe-time, .keyframe-index {
+              color: white;
+              font-size: 12px;
+            }
+            
+            .keyframe-index {
+              background-color: #1890ff;
+              border-radius: 4px;
+              padding: 0 4px;
+            }
+          }
+          
+          .keyframe-image {
+            height: 200px;
+            width: 100%;
+            object-fit: contain;
+            border-radius: 4px;
+          }
+        }
+        
+        // 轮播图箭头
+        .ant-carousel .slick-prev,
+        .ant-carousel .slick-next {
+          color: white;
+          font-size: 20px;
+          width: 30px;
+          height: 30px;
+          background-color: rgba(0, 0, 0, 0.3);
+          border-radius: 50%;
+          z-index: 2;
+          display: flex !important;
+          align-items: center;
+          justify-content: center;
+          
+          &:hover {
+            background-color: rgba(0, 0, 0, 0.5);
+          }
+        }
+        
+        // 轮播图指示点
+        .carousel-dots {
+          bottom: -10px;
+          
+          li {
+            button {
+              background-color: #d9d9d9;
+              
+              &:hover {
+                background-color: #1890ff;
+              }
+            }
+            
+            &.slick-active button {
+              background-color: #1890ff;
+            }
+          }
+        }
+      }
+    }
+    
+    // 提示词模板选择器
+    .template-selector {
+      border: 1px solid #f0f0f0;
+      border-radius: 4px;
+      
+      .template-tabs {
+        .ant-tabs-nav {
+          margin-bottom: 0;
+        }
+        
+        .ant-tabs-content {
+          padding: 16px;
+        }
+      }
+      
+      .template-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+        
+        .template-item {
+          border: 1px solid #f0f0f0;
+          border-radius: 4px;
+          padding: 12px;
+          cursor: pointer;
+          transition: all 0.3s;
+          height: 100%;
+          
+          &:hover {
+            border-color: #1890ff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+          }
+          
+          &.selected {
+            border-color: #1890ff;
+            background-color: #e6f7ff;
+          }
+          
+          .template-item-title {
+            font-weight: 500;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: rgba(0, 0, 0, 0.85);
+          }
+          
+          .template-item-desc {
+            font-size: 12px;
+            color: rgba(0, 0, 0, 0.45);
+            margin-bottom: 8px;
+            line-height: 1.5;
+          }
+          
+          .template-item-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            
+            .ant-tag {
+              margin-right: 0;
+              font-size: 10px;
+              padding: 0 5px;
+              line-height: 18px;
+              height: 18px;
+            }
+          }
+        }
+      }
+    }
+    
+    .analysis-actions {
+      margin-top: 24px;
+      
+      .ant-btn-link {
+        margin-top: 8px;
+        display: block;
+        text-align: center;
+      }
+    }
+  }
+  
+  // 分析结果卡片样式
+  .analysis-result-card {
+    height: 100%;
+    
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 400px;
+    }
+    
+    .empty-result {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 400px;
+      padding: 24px;
+      
+      .empty-icon {
+        font-size: 64px;
+        color: rgba(0, 0, 0, 0.15);
+        margin-bottom: 24px;
+      }
+      
+      .empty-text {
+        text-align: center;
+        color: rgba(0, 0, 0, 0.45);
+      }
+    }
+    
+    .analysis-content {
+      .result-header {
+        margin-bottom: 16px;
+        
+        .summary-section {
+          margin-bottom: 16px;
+        }
+        
+        .keywords-section {
+          .keyword-tags {
+            margin-top: 8px;
+            
+            .keyword-tag {
+              display: inline-block;
+              background-color: #f0f0f0;
+              color: rgba(0, 0, 0, 0.65);
+              padding: 4px 8px;
+              border-radius: 4px;
+              margin-right: 8px;
+              margin-bottom: 8px;
+            }
+          }
+        }
+      }
+      
+      .segments-section {
+        margin-bottom: 24px;
+        
+        .segment-list {
+          max-height: 400px;
+          overflow-y: auto;
+          
+          .segment-item {
+            border: 1px solid #f0f0f0;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 12px;
+            
+            &:last-child {
+              margin-bottom: 0;
+            }
+            
+            .segment-header {
+              display: flex;
+              align-items: center;
+              margin-bottom: 8px;
+              
+              .segment-index {
+                background-color: #1890ff;
+                color: white;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 12px;
+                margin-right: 8px;
+              }
+              
+              .segment-time {
+                color: rgba(0, 0, 0, 0.45);
+                font-size: 12px;
+                margin-right: 8px;
+              }
+              
+              .segment-emotion {
+                font-size: 12px;
+                padding: 2px 6px;
+                border-radius: 4px;
+                
+                &.emotion-neutral { background-color: #e6f7ff; color: #1890ff; }
+                &.emotion-happy { background-color: #f6ffed; color: #52c41a; }
+                &.emotion-excited { background-color: #fff7e6; color: #fa8c16; }
+                &.emotion-serious { background-color: #f9f0ff; color: #722ed1; }
+                &.emotion-surprised { background-color: #fffbe6; color: #faad14; }
+                &.emotion-sad { background-color: #e6f4ff; color: #597ef7; }
+              }
+            }
+            
+            .segment-content {
+              margin-bottom: 8px;
+              white-space: pre-wrap;
+              line-height: 1.5;
+            }
+            
+            .segment-tags {
+              display: flex;
+              flex-wrap: wrap;
+              
+              .segment-tag {
+                background-color: #f5f5f5;
+                color: rgba(0, 0, 0, 0.65);
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 12px;
+                margin-right: 6px;
+                margin-bottom: 6px;
+              }
+            }
+          }
+        }
+      }
+      
+      .result-actions {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+      }
+    }
+  }
+} 

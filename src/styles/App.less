@@ -1,0 +1,75 @@
+@import './variables.less';
+
+// 全局样式重置
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+  'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+  'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f0f2f5;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+// 布局样式
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-layout-content {
+  padding: @layout-content-padding;
+  background: #fff;
+  min-height: calc(100vh - @layout-header-height - 48px);
+  border-radius: 4px;
+}
+
+.header-logo {
+  float: left;
+  width: 120px;
+  height: @layout-header-height;
+  margin-right: 24px;
+  display: flex;
+  align-items: center;
+  
+  h1 {
+    color: #fff;
+    font-size: 18px;
+    margin: 0;
+  }
+}
+
+.page-header {
+  margin-bottom: 24px;
+  
+  .title {
+    margin-bottom: 16px;
+  }
+  
+  .description {
+    font-size: 14px;
+    color: @text-color-secondary;
+  }
+}

@@ -1,0 +1,65 @@
+@import './variables.less';
+
+.project-management-container {
+  .project-tools {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  
+  .project-list {
+    margin-top: 24px;
+    
+    .project-card {
+      cursor: pointer;
+      transition: all 0.3s;
+      
+      &:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+      }
+      
+      .project-card-title {
+        display: flex;
+        align-items: center;
+        
+        .project-icon {
+          margin-right: 8px;
+          color: @primary-color;
+          font-size: 18px;
+        }
+      }
+      
+      .more-btn {
+        opacity: 0.6;
+        
+        &:hover {
+          opacity: 1;
+        }
+      }
+      
+      .project-description {
+        margin-bottom: 16px;
+        min-height: 44px;
+      }
+      
+      .project-tags {
+        margin-bottom: 16px;
+        min-height: 22px;
+      }
+      
+      .project-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: @text-color-secondary;
+        font-size: 12px;
+        
+        .project-stat {
+          display: flex;
+          gap: 12px;
+        }
+      }
+    }
+  }
+} 

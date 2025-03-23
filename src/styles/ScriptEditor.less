@@ -1,0 +1,140 @@
+@import './variables.less';
+
+.script-editor-container {
+  padding: 24px;
+  height: 100%;
+  overflow: auto;
+
+  .page-header {
+    margin-bottom: 24px;
+
+    .description {
+      color: rgba(0, 0, 0, 0.65);
+    }
+  }
+
+  .script-editor-card {
+    margin-bottom: 24px;
+    
+    .timeline-section {
+      margin-bottom: 24px;
+      border: 1px solid #f0f0f0;
+      border-radius: 4px;
+      padding: 16px;
+      background-color: #fafafa;
+
+      .timeline-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+
+        h5 {
+          margin-bottom: 0;
+        }
+
+        .timeline-controls {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+
+          .current-time {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1890ff;
+          }
+        }
+      }
+    }
+
+    .table-actions {
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .editor-tabs {
+      .voice-settings {
+        padding: 24px;
+        background-color: #f9f9f9;
+        border-radius: 4px;
+        text-align: center;
+      }
+    }
+  }
+
+  .script-content {
+    white-space: pre-wrap;
+    
+    .script-tags {
+      margin-top: 8px;
+    }
+  }
+
+  .script-row {
+    transition: background-color 0.3s;
+
+    &.highlight-row {
+      background-color: rgba(24, 144, 255, 0.1);
+    }
+
+    .ant-table-cell {
+      vertical-align: top;
+    }
+  }
+
+  .script-table {
+    .ant-table-tbody > tr > td {
+      padding: 12px 16px;
+    }
+  }
+}
+
+// Modal styles
+.ant-modal-body {
+  .ant-form-item {
+    margin-bottom: 16px;
+  }
+}
+
+// 时间轴组件样式扩展
+.script-timeline-container {
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+// 创建脚本片段所用的颜色
+.timeline-segment {
+  &.emotion-neutral {
+    background-color: #91d5ff;
+  }
+
+  &.emotion-happy {
+    background-color: #b7eb8f;
+  }
+
+  &.emotion-excited {
+    background-color: #ffbb96;
+  }
+
+  &.emotion-serious {
+    background-color: #d3adf7;
+  }
+
+  &.emotion-surprised {
+    background-color: #ffd666;
+  }
+
+  &.emotion-sad {
+    background-color: #adc6ff;
+  }
+}
+
+.ant-slider-mark-text {
+  font-size: 12px;
+}
+
+.ant-form-item-label > label {
+  font-weight: 500;
+} 

@@ -1,0 +1,58 @@
+@import './variables.less';
+
+.home-container {
+  padding: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  .welcome-section {
+    text-align: center;
+    margin-bottom: 48px;
+    
+    h2 {
+      color: @primary-color;
+      margin-bottom: 16px;
+    }
+    
+    p {
+      font-size: 16px;
+      color: @text-color;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+  }
+  
+  .feature-card {
+    height: 240px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    
+    &:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    }
+    
+    h4 {
+      margin-top: 8px;
+      margin-bottom: 8px;
+      color: @heading-color;
+    }
+    
+    p {
+      color: @text-color-secondary;
+    }
+  }
+  
+  .stats-section {
+    .ant-card {
+      text-align: center;
+      
+      .ant-statistic-title {
+        color: @text-color-secondary;
+      }
+    }
+  }
+} 
