@@ -12,7 +12,7 @@ import {
   PlaySquareOutlined,
   ProjectOutlined
 } from '@ant-design/icons';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import Logo from '../assets/logo';
 import '../styles/MainLayout.less';
@@ -33,8 +33,7 @@ interface MainLayoutProps {
 const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
-  const { theme, setTheme, isDarkMode } = useTheme();
+  const { setTheme, isDarkMode } = useTheme();
   
   const toggleCollapsed = () => {
     setCollapsed(!collapsed);
@@ -45,16 +44,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     setTheme(isDarkMode ? 'light' : 'dark');
   };
   
-  // 帮助菜单
-  const helpMenu = (
-    <Menu>
-      <Menu.Item key="docs">文档中心</Menu.Item>
-      <Menu.Item key="tutorials">视频教程</Menu.Item>
-      <Menu.Item key="faq">常见问题</Menu.Item>
-      <Menu.Divider />
-      <Menu.Item key="feedback">意见反馈</Menu.Item>
-    </Menu>
-  );
+  // 帮助菜单功能待实现
+  // const helpMenu = (
+  //   <Menu>
+  //     <Menu.Item key="docs">文档中心</Menu.Item>
+  //     <Menu.Item key="tutorials">视频教程</Menu.Item>
+  //     <Menu.Item key="faq">常见问题</Menu.Item>
+  //     <Menu.Divider />
+  //     <Menu.Item key="feedback">意见反馈</Menu.Item>
+  //   </Menu>
+  // );
 
   function getMenuItems(): MenuItem[] {
     return [
@@ -99,7 +98,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   }
 
   return (
-    <Layout className="main-layout">
+    <Layout className={`main-layout ${collapsed ? 'sidebar-collapsed' : ''}`}>
       <Sider 
         trigger={null} 
         collapsible 
@@ -134,7 +133,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           ))}
         </Menu>
       </Sider>
-      <Layout className="main-content">
+      <Layout 
+        className="main-content"
+        style={{
+          marginLeft: collapsed ? 80 : 256,
+          transition: 'all 0.2s'
+        }}
+      >
         <Header className="app-header">
           <Button
             type="text"

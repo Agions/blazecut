@@ -5,11 +5,9 @@ import {
   Input, 
   Button, 
   Switch, 
-  Tabs, 
   message, 
   Typography, 
   Tooltip, 
-  Collapse,
   Divider,
   Space,
   Select,
@@ -22,18 +20,11 @@ import {
   Result
 } from 'antd';
 import { 
-  QuestionCircleOutlined, 
-  LinkOutlined, 
   SaveOutlined, 
-  KeyOutlined,
   InfoCircleOutlined,
   RobotOutlined,
-  BulbOutlined,
   ApiOutlined,
-  CloudUploadOutlined,
-  LoadingOutlined,
   CheckCircleOutlined,
-  PlusOutlined,
   CloudOutlined,
   CloseCircleOutlined,
   SettingOutlined,
@@ -43,20 +34,8 @@ import {
 import aiService, { AIProviderConfig } from '../services/aiService';
 import '../styles/AISettings.less';
 
-const { Title, Paragraph, Text, Link } = Typography;
-const { TabPane } = Tabs;
-const { Panel } = Collapse;
+const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
-const { Step } = Steps;
-
-interface ModelConfig {
-  name: string;
-  provider: string;
-  description: string;
-  capabilities: string[];
-  isDefault: boolean;
-  status: 'active' | 'disabled' | 'loading';
-}
 
 interface ModelOption {
   value: string;

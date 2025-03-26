@@ -1,16 +1,20 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import { ConfigProvider } from 'antd';
+import { getTheme } from '../styles/theme';
 
 type ThemeType = 'light' | 'dark' | 'system';
 
 interface ThemeContextType {
   theme: ThemeType;
   setTheme: (theme: ThemeType) => void;
+  toggleTheme: () => void;
   isDarkMode: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: 'light',
   setTheme: () => {},
+  toggleTheme: () => {},
   isDarkMode: false
 });
 
@@ -46,8 +50,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       setIsDarkMode(theme === 'dark');
     }
     
+    // 应用主题到body元素
+    document.body.classList.toggle('dark-mode', isDarkMode);
+    document.body.style.backgroundColor = isDarkMode ? '#121212' : '#f5f7fa';
+    document.body.style.color = isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.85)';
+    
     return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [theme]);
+  }, [theme, isDarkMode]);
   
   // 当主题改变时，更新 localStorage 和文档类
   useEffect(() => {
@@ -89,13 +98,20 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     }
   };
   
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+  
+  // 获取当前主题配置
+  const currentTheme = getTheme(isDarkMode);
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme: handleSetTheme, isDarkMode }}>
-      {children}
+    <ThemeContext.Provider value={{ theme, setTheme: handleSetTheme, toggleTheme, isDarkMode }}>
+      <ConfigProvider theme={currentTheme}>
+        {children}
+      </ConfigProvider>
     </ThemeContext.Provider>
   );
 };
 
-export const useTheme = () => useContext(ThemeContext);
-
-export default ThemeContext; 
+export default ThemeContext;

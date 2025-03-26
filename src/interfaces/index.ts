@@ -5,6 +5,9 @@ export interface ScriptSegment {
   duration: number; // 持续时间(秒)
   content: string; // 解说内容
   emotion?: string; // 情感色彩：neutral, happy, excited, serious, surprised, sad
+  intensity?: number; // 情感强度 0-1
+  confidence?: number; // 内容准确度置信度 0-1
+  alternatives?: { content: string; confidence: number }[]; // 备选解说内容
   tags?: string[]; // 标签列表
   voiceConfig?: {
     speed: number; // 语速
@@ -85,6 +88,19 @@ export interface AIAnalysisResult {
   segments: ScriptSegment[];
   summary?: string;
   keywords?: string[];
+  demographics?: { // 内容适合的人群特征
+    ageGroups?: string[];
+    interests?: string[];
+    regions?: string[];
+  };
+  contentRating?: 'G' | 'PG' | 'PG-13' | 'R'; // 内容分级
+  themes?: { name: string; relevance: number }[]; // 主题及相关度
+  pacing?: 'slow' | 'moderate' | 'fast'; // 内容节奏
+  metadata?: {
+    processingTime: number; // 处理时间(ms)
+    modelVersion: string; // 使用的模型版本
+    framesAnalyzed?: number; // 分析的帧数
+  };
 }
 
 export interface AIModel {

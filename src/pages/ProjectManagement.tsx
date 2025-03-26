@@ -1,21 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Typography, Table, Button, Space, Card, Input, 
-  Modal, Form, Select, Tag, Tooltip, Empty, Popconfirm,
+  Modal, Form, Select, Tag, Tooltip, Empty, 
   Dropdown, Menu, Tabs, Row, Col, Statistic, Badge,
-  Divider, Avatar, List, Checkbox
-} from 'antd';
+  Divider, Avatar, List} from 'antd';
 import { 
   PlusOutlined, 
   EditOutlined, 
   DeleteOutlined, 
   ExportOutlined, 
-  SearchOutlined,
   EyeOutlined,
   CopyOutlined,
   FilterOutlined,
   SortAscendingOutlined,
-  CloudUploadOutlined,
   DownOutlined,
   FileTextOutlined,
   VideoCameraOutlined,
@@ -25,7 +22,6 @@ import {
   TeamOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import type { CheckboxChangeEvent } from 'antd/es/checkbox';
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
@@ -622,6 +618,7 @@ const ProjectManagement: React.FC = () => {
               columns={columns}
               dataSource={filteredProjects}
               rowKey="id"
+              scroll={{ x: 1200 }}
               pagination={{ 
                 defaultPageSize: 5, 
                 showSizeChanger: true, 

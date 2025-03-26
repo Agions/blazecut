@@ -1,14 +1,14 @@
 import { Project, ScriptSegment } from '../../interfaces';
 import { videoService } from '../video';
 import { v4 as uuidv4 } from 'uuid';
-import { store } from '@tauri-apps/plugin-store';
+import { Store } from '@tauri-apps/plugin-store';
 import { BaseDirectory, createDir } from '@tauri-apps/plugin-fs';
 
 // 项目存储管理
 class ProjectService {
   private static instance: ProjectService;
   private currentProject: Project | null = null;
-  private projectStore: typeof store | null = null;
+  private projectStore: Store | null = null;
   private readonly storeFileName = 'project_data.json';
   private readonly projectsDir = 'projects';
 
@@ -27,9 +27,16 @@ class ProjectService {
   // 初始化存储
   private async initStore() {
     try {
-      await createDir(this.projectsDir, { dir: BaseDirectory.AppData, recursive: true });
-      this.projectStore = new store(this.storeFileName);
-      await this.projectStore.load();
+      // 确保目录存在
+      const dirOptions = { dir: BaseDirectory.AppData, recursive: true };
+      
+      // 创建存储目录
+      await createDir(this.projectsDir, dirOptions);
+      
+      // Tauri v2 API中，Store只能通过其静态工厂方法创建
+      const storeOptions = { path: this.storeFileName };
+      // @ts-expect-error - Tauri v2 API类型定义可能与实际使用不完全匹配
+      this.projectStore = await Store.open(storeOptions);
       console.log('项目存储初始化成功');
     } catch (error) {
       console.error('初始化项目存储失败:', error);

@@ -1,7 +1,6 @@
 import React from 'react';
 import { Typography, Card, Row, Col, Button, Space, Divider } from 'antd';
 import { 
-  PlayCircleOutlined, 
   FileTextOutlined, 
   RocketOutlined,
   ThunderboltOutlined,

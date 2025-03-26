@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Typography, 
-  Table, 
   Button, 
   Space, 
   Input, 
@@ -21,48 +20,67 @@ import {
   Dropdown,
   Menu,
   Radio,
-  Checkbox
 } from 'antd';
 import { 
   EditOutlined, 
   DeleteOutlined, 
   PlusOutlined, 
   SaveOutlined, 
-  ExportOutlined,
   PlayCircleOutlined,
-  PauseOutlined,
-  SettingOutlined,
-  SoundOutlined,
   FileTextOutlined,
   RobotOutlined,
   ReloadOutlined,
   DownloadOutlined,
   VideoCameraOutlined,
-  DragOutlined,
   DownOutlined,
   PauseCircleOutlined,
-  ImportOutlined
+  BulbOutlined,
+  ThunderboltOutlined,
+  QuestionCircleOutlined
 } from '@ant-design/icons';
-import { open } from '@tauri-apps/plugin-dialog';
 import { ScriptSegment } from '../interfaces/index';
-import ScriptTimeline from '../components/ScriptTimeline';
-import { exportService, ExportOptions } from '../services/export';
 import '../styles/ScriptEditor.less';
 import { useLocation } from 'react-router-dom';
-import aiService, { AIService, ExportFormat } from '../services/aiService';
+import aiService, { ExportFormat, VideoAnalysisResult } from '../services/aiService';
 
 const { Title, Paragraph, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 const { TabPane } = Tabs;
 
-// 扩展ScriptSegment接口，添加UI需要的属性
+// 脚本片段扩展接口，添加UI所需的额外属性
 interface ExtendedScriptSegment extends ScriptSegment {
-  style?: string;
-  timeText?: string; // 用于显示时间格式化文本
-  duration: number; // 持续时间
-  tone?: string; // 语调，可选
+  style?: string;         // 片段风格
+  timeText?: string;      // 格式化的时间文本
+  duration: number;       // 持续时间（秒）
+  tone?: string;          // 语调
+  isGenerating?: boolean; // 是否正在生成中
+  favorite?: boolean;     // 是否收藏
+  version?: number;       // 版本号
+  audioUrl?: string;      // 音频预览URL
+  tags?: string[];        // 标签
 }
+
+// 项目数据接口
+interface ProjectData {
+  id: string;                      // 项目ID
+  name: string;                    // 项目名称
+  videoUrl: string;                // 视频URL
+  thumbnailUrl?: string;           // 缩略图URL
+  duration: number;                // 视频时长（秒）
+  analysisResults?: any;           // 视频分析结果
+  script?: ExtendedScriptSegment[]; // 脚本内容
+  lastModified: Date;              // 最后修改时间
+  author?: string;                 // 作者
+  description?: string;            // 项目描述
+  category?: string;               // 项目分类
+  tags?: string[];                 // 项目标签
+  isPublic?: boolean;              // 是否公开
+  views?: number;                  // 浏览量
+  status?: 'draft' | 'published';  // 项目状态
+}
+
+
 
 const ScriptEditor: React.FC = () => {
   const location = useLocation();
@@ -75,48 +93,14 @@ const ScriptEditor: React.FC = () => {
   const [playingSegmentId, setPlayingSegmentId] = useState<string | null>(null);
   const [videoTime, setVideoTime] = useState(0);
   const [projectId, setProjectId] = useState<string | null>(null);
-  const [scriptSegments, setScriptSegments] = useState<ExtendedScriptSegment[]>([
-    {
-      id: '1',
-      startTime: 5, // 秒数
-      duration: 10, // 持续时间（秒）
-      content: '这是一个充满活力的开场，画面中主角笑容灿烂地向观众挥手致意。',
-      style: 'professional',
-      timeText: '00:00:05 - 00:00:15'
-    },
-    {
-      id: '2',
-      startTime: 16,
-      duration: 14,
-      content: '场景转换到一个精心布置的客厅，温馨的灯光照亮了整个空间，主角开始向观众介绍今天的主题。',
-      style: 'professional',
-      timeText: '00:00:16 - 00:00:30'
-    },
-    {
-      id: '3',
-      startTime: 31,
-      duration: 14,
-      content: '特写镜头展示了主角手中精致的工艺品，每一个细节都清晰可见，观众可以感受到制作的用心。',
-      style: 'professional',
-      timeText: '00:00:31 - 00:00:45'
-    },
-  ]);
-  
-  // 预览的完整脚本
-  const fullScript = scriptSegments.map(segment => segment.content).join('\n\n');
-  
+  const [projectData, setProjectData] = useState<ProjectData | null>(null);
+  const [scriptSegments, setScriptSegments] = useState<ExtendedScriptSegment[]>([]);
+  const [analysisData, setAnalysisData] = useState<VideoAnalysisResult | null>(null);
   // 预览和编辑状态
   const [videoDuration, setVideoDuration] = useState(180); // 3分钟
-  const [currentTime, setCurrentTime] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [currentSegment, setCurrentSegment] = useState<ExtendedScriptSegment | null>(null);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isExportDrawerVisible, setIsExportDrawerVisible] = useState(false);
-  const [exportOptions, setExportOptions] = useState<ExportOptions>({
-    format: 'srt',
-    outputPath: './output',
-    includeMetadata: true,
-  });
   const [exporting, setExporting] = useState(false);
   const [exportFormat, setExportFormat] = useState('srt');
 
@@ -133,11 +117,79 @@ const ScriptEditor: React.FC = () => {
     }
   }, [location]);
   
-  // 初始化示例视频URL
-  useEffect(() => {
-    // 实际应用中应该从项目中加载视频
-    setVideoUrl('https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4');
+  // 加载项目数据
+  const loadProjectData = useCallback(async (id: string) => {
+    try {
+      setLoading(true);
+      // 这里应该是从API加载项目数据
+      // 模拟加载项目数据
+      const mockProjectData: ProjectData = {
+        id,
+        name: `项目 ${id}`,
+        videoUrl: 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4',
+        duration: 180, // 3分钟
+        lastModified: new Date(),
+        analysisResults: {
+          scenes: [
+            { startTime: 0, endTime: 12, description: '开场画面，花朵特写' },
+            { startTime: 13, endTime: 25, description: '花朵随风摇摆' },
+            { startTime: 26, endTime: 40, description: '特写镜头，展示花朵细节' }
+          ],
+          keywords: ['花', '自然', '特写', '美丽'],
+          summary: '这是一段展示花朵特写的视频，画面美丽而平静。'
+        }
+      };
+
+      setProjectData(mockProjectData);
+      setVideoUrl(mockProjectData.videoUrl);
+      setVideoDuration(mockProjectData.duration);
+      setAnalysisData(mockProjectData.analysisResults);
+
+      // 如果已有脚本数据，加载它
+      if (mockProjectData.script && mockProjectData.script.length > 0) {
+        setScriptSegments(mockProjectData.script);
+      } else {
+        // 否则准备根据分析结果生成
+        prepareSegmentsFromAnalysis(mockProjectData.analysisResults);
+      }
+
+      message.success(`成功加载项目: ${mockProjectData.name}`);
+    } catch (error: any) {
+      console.error('加载项目失败:', error);
+      message.error(`加载项目失败: ${error.message || '未知错误'}`);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // 从分析结果创建脚本段落框架
+  const prepareSegmentsFromAnalysis = (analysisResults: any) => {
+    if (!analysisResults || !analysisResults.scenes) {
+      return;
+    }
+
+    const newSegments: ExtendedScriptSegment[] = analysisResults.scenes.map((scene: any, index: number) => ({
+      id: (index + 1).toString(),
+      startTime: scene.startTime,
+      duration: scene.endTime - scene.startTime,
+      content: scene.description || '',  // 暂时使用场景描述作为内容占位符
+      style: 'professional',
+      timeText: getTimeRangeText(scene.startTime, scene.endTime - scene.startTime)
+    }));
+
+    setScriptSegments(newSegments);
+  };
+
+  // 初始化项目数据
+  useEffect(() => {
+    if (projectId) {
+      loadProjectData(projectId);
+    } else {
+      // 没有项目ID时，设置默认值
+      setVideoUrl('https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4');
+      setScriptSegments([]);
+    }
+  }, [projectId, loadProjectData]);
 
   // 格式化时间（秒转换为00:00:00格式）
   const formatTime = (seconds: number): string => {
@@ -159,73 +211,28 @@ const ScriptEditor: React.FC = () => {
     return `${startText} - ${endText}`;
   };
 
-  // 表格列定义
-  const columns = [
-    {
-      title: '序号',
-      dataIndex: 'id',
-      key: 'id',
-      width: 60,
-    },
-    {
-      title: '时间点',
-      dataIndex: 'startTime',
-      key: 'startTime',
-      width: 100,
-      render: (time: number) => formatTime(time),
-    },
-    {
-      title: '持续时间',
-      dataIndex: 'duration',
-      key: 'duration',
-      width: 100,
-      render: (duration: number) => `${duration.toFixed(2)}秒`,
-    },
-    {
-      title: '解说内容',
-      dataIndex: 'content',
-      key: 'content',
-      render: (text: string, record: ExtendedScriptSegment) => (
-        <div className="script-content">
-          {text}
-        </div>
-      ),
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 120,
-      render: (_: any, record: ExtendedScriptSegment) => (
-        <Space size="small">
-          <Tooltip title="编辑">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            />
-          </Tooltip>
-          <Tooltip title="删除">
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.id)}
-            />
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ];
+  // 已使用卡片布局替代表格，不再需要表格列定义
+
+  // 预览的完整脚本
+  const fullScript = scriptSegments.map(segment => segment.content).join('\n\n');
+
 
   // 编辑脚本段落
   const handleEdit = (segment: ExtendedScriptSegment) => {
     setCurrentSegment(segment);
+    
+    // 处理时间文本转换，确保时间格式正确
+    const segmentStartTime = segment.startTime || (
+      segment.timeText ? parseTimeText(segment.timeText.split(' - ')[0]) : 0
+    );
+    
     form.setFieldsValue({
-      startTime: segment.startTime,
-      duration: segment.duration,
-      content: segment.content,
-      style: segment.style,
+      startTime: segmentStartTime,
+      duration: segment.duration || 10,
+      content: segment.content || '',
+      style: segment.style || 'professional',
     });
+    
     setIsEditModalVisible(true);
   };
 
@@ -405,18 +412,89 @@ const ScriptEditor: React.FC = () => {
   };
 
   // 生成解说文案
-  const generateScript = () => {
-    setLoading(true);
-    message.loading('正在生成解说文案，请稍候...', 2.5)
-      .then(() => {
-        message.success('解说文案生成成功！');
-        setLoading(false);
+  const generateScript = async () => {
+    if (!analysisData) {
+      message.error('缺少视频分析数据，无法生成解说文案');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      message.loading('正在生成解说文案，请稍候...', 0);
+      
+      // 使用AIService生成脚本
+      const results = await aiService.generateScript({
+        analysisData,
+        style: scriptStyle,
+        emotionLevel,
+        detailLevel,
+        segments: scriptSegments.map(segment => ({
+          id: segment.id,
+          startTime: segment.startTime,
+          endTime: segment.startTime + segment.duration,
+          content: segment.content || '',
+          associatedSceneIndex: parseInt(segment.id) - 1
+        }))
       });
+      
+      // 更新脚本段落
+      if (results && results.segments) {
+        const newSegments = results.segments.map(segment => {
+          // 找到对应的旧段落以保留UI相关属性
+          const existingSegment = scriptSegments.find(s => s.id === segment.id);
+          
+          return {
+            ...segment,
+            duration: segment.endTime - segment.startTime,
+            style: existingSegment?.style || 'professional',
+            timeText: getTimeRangeText(segment.startTime, segment.endTime - segment.startTime)
+          };
+        });
+        
+        setScriptSegments(newSegments);
+        message.success('解说文案生成成功！');
+      } else {
+        throw new Error('生成结果格式不正确');
+      }
+    } catch (error: any) {
+      console.error('生成解说文案失败:', error);
+      message.error(`生成解说文案失败: ${error.message || '未知错误'}`);
+    } finally {
+      setLoading(false);
+    }
   };
   
   // 保存解说文案
-  const saveScript = () => {
-    message.success('解说文案已保存');
+  const saveScript = async () => {
+    try {
+      if (!projectId) {
+        message.warning('无项目ID，无法保存');
+        return;
+      }
+      
+      setLoading(true);
+      message.loading('正在保存解说文案...', 0);
+      
+      // 这里应该是调用API保存脚本数据
+      // 模拟API调用
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // 更新本地项目数据
+      if (projectData) {
+        setProjectData({
+          ...projectData,
+          script: scriptSegments,
+          lastModified: new Date()
+        });
+      }
+      
+      message.success('解说文案已保存');
+    } catch (error: any) {
+      console.error('保存失败:', error);
+      message.error(`保存失败: ${error.message || '未知错误'}`);
+    } finally {
+      setLoading(false);
+    }
   };
   
   // 更新单个片段内容
@@ -429,13 +507,46 @@ const ScriptEditor: React.FC = () => {
   };
 
   // 重新生成单个片段
-  const regenerateSegment = (id: string) => {
-    message.loading(`正在重新生成第${id}段解说...`, 1.5)
-      .then(() => {
-        const newContent = '这是重新生成的解说内容，更加符合你选择的风格和情感程度。AI会根据视频内容智能调整描述的细节和表达方式。';
-        updateSegmentContent(id, newContent);
-        message.success('重新生成成功！');
+  const regenerateSegment = async (id: string) => {
+    if (!analysisData) {
+      message.error('缺少视频分析数据，无法重新生成');
+      return;
+    }
+    
+    try {
+      message.loading(`正在重新生成第${id}段解说...`, 0);
+      
+      // 找到当前段落
+      const segment = scriptSegments.find(s => s.id === id);
+      if (!segment) {
+        throw new Error('未找到指定段落');
+      }
+      
+      // 使用AIService重新生成单个段落
+      const result = await aiService.regenerateSegment({
+        segment: {
+          id: segment.id,
+          startTime: segment.startTime,
+          endTime: segment.startTime + segment.duration,
+          content: segment.content || '',
+          associatedSceneIndex: parseInt(segment.id) - 1
+        },
+        analysisData,
+        style: segment.style || scriptStyle,
+        emotionLevel,
+        detailLevel
       });
+      
+      if (result && result.content) {
+        updateSegmentContent(id, result.content);
+        message.success('重新生成成功！');
+      } else {
+        throw new Error('生成结果格式不正确');
+      }
+    } catch (error: any) {
+      console.error('重新生成失败:', error);
+      message.error(`重新生成失败: ${error.message || '未知错误'}`);
+    }
   };
   
   // 播放指定片段
@@ -494,70 +605,156 @@ const ScriptEditor: React.FC = () => {
                 {scriptSegments.map((segment) => (
                   <div 
                     key={segment.id} 
+                    className={`script-segment-card ${playingSegmentId === segment.id ? 'playing' : ''}`}
                     style={{ 
                       marginBottom: 24, 
                       border: '1px solid #f0f0f0', 
-                      padding: 16, 
+                      padding: 20, 
                       borderRadius: 8,
-                      boxShadow: playingSegmentId === segment.id ? '0 0 8px rgba(51, 102, 255, 0.5)' : 'none',
-                      transition: 'box-shadow 0.3s ease'
+                      background: playingSegmentId === segment.id ? 'rgba(24, 144, 255, 0.05)' : '#fff',
+                      boxShadow: playingSegmentId === segment.id ? '0 2px 8px rgba(24, 144, 255, 0.15)' : '0 1px 4px rgba(0,0,0,0.03)',
+                      transition: 'all 0.3s ease',
+                      cursor: 'pointer'
                     }}
+                    onClick={() => playSegment(segment.id)}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <div 
+                          style={{ 
+                            fontWeight: 600, 
+                            marginRight: 12,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 36,
+                            height: 36,
+                            borderRadius: '50%',
+                            background: playingSegmentId === segment.id ? '#1890ff' : '#f5f5f5',
+                            color: playingSegmentId === segment.id ? '#fff' : '#333' 
+                          }}
+                        >
+                          {segment.id}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 500, marginBottom: 4 }}>
+                            {formatTime(segment.startTime)} - {formatTime(segment.startTime + segment.duration)}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#888' }}>
+                            时长: {segment.duration.toFixed(1)}秒
+                            {segment.style && <Tag color="blue" style={{ marginLeft: 8 }}>{segment.style === 'professional' ? '专业解说' : 
+                                         segment.style === 'humorous' ? '幽默风趣' : 
+                                         segment.style === 'dramatic' ? '戏剧化' : 
+                                         segment.style === 'educational' ? '教育讲解' : 
+                                         segment.style === 'storytelling' ? '故事叙述' : segment.style}
+                            </Tag>}
+                          </div>
+                        </div>
+                      </div>
+                      
                       <Space>
-                        <DragOutlined style={{ cursor: 'move', color: '#999' }} />
-                        <Text type="secondary">
-                          片段 {segment.id} ({formatTime(segment.startTime)} - {formatTime(segment.startTime + segment.duration)})
-                        </Text>
-                      </Space>
-                      <Space>
+                        <Tooltip title="播放片段">
+                          <Button 
+                            type="text"
+                            shape="circle"
+                            icon={playingSegmentId === segment.id ? <PauseCircleOutlined style={{ color: '#1890ff' }} /> : <PlayCircleOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (playingSegmentId === segment.id) {
+                                const video = document.getElementById('previewVideo') as HTMLVideoElement;
+                                if (video) video.pause();
+                                setPlayingSegmentId(null);
+                              } else {
+                                playSegment(segment.id);
+                              }
+                            }}
+                          />
+                        </Tooltip>
                         <Tooltip title="重新生成">
                           <Button 
-                            icon={<ReloadOutlined />} 
-                            size="small"
-                            onClick={() => regenerateSegment(segment.id)}
+                            type="text"
+                            shape="circle"
+                            icon={<ReloadOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              regenerateSegment(segment.id);
+                            }}
                           />
                         </Tooltip>
-                        <Tooltip title="预览朗读">
+                        <Tooltip title="编辑片段">
                           <Button 
-                            icon={<SoundOutlined />} 
-                            size="small"
+                            type="text"
+                            shape="circle"
+                            icon={<EditOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(segment);
+                            }}
                           />
                         </Tooltip>
-                        <Tooltip title="在视频中预览">
+                        <Tooltip title="删除片段">
                           <Button 
-                            icon={<PlayCircleOutlined />} 
-                            size="small"
-                            onClick={() => playSegment(segment.id)}
-                            type={playingSegmentId === segment.id ? 'primary' : 'default'}
+                            type="text"
+                            shape="circle"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(segment.id);
+                            }}
                           />
                         </Tooltip>
                       </Space>
                     </div>
-                    <TextArea
-                      value={segment.content}
-                      onChange={(e) => updateSegmentContent(segment.id, e.target.value)}
-                      autoSize={{ minRows: 2, maxRows: 6 }}
-                    />
                     
-                    <Space style={{ marginTop: 8 }}>
+                    <Divider style={{ margin: '8px 0 16px' }} />
+                    
+                    <div className="segment-content">
+                      <TextArea
+                        value={segment.content}
+                        onChange={(e) => {
+                          e.stopPropagation(); // 防止冒泡触发卡片点击事件
+                          updateSegmentContent(segment.id, e.target.value);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        autoSize={{ minRows: 3, maxRows: 6 }}
+                        style={{ fontSize: 14, border: '1px solid #d9d9d9', padding: '8px 12px', lineHeight: 1.6 }}
+                        placeholder="请输入解说内容..."
+                      />
+                    </div>
+                    
+                    <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Select 
-                        size="small" 
-                        defaultValue={segment.style} 
-                        style={{ width: 120 }}
+                        size="middle" 
+                        value={segment.style || 'professional'} 
+                        style={{ width: 140 }}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={(value) => setScriptSegments(
                           scriptSegments.map(s => 
                             s.id === segment.id ? { ...s, style: value } : s
                           )
                         )}
+                        placeholder="选择风格"
                       >
                         <Option value="professional">专业解说</Option>
                         <Option value="humorous">幽默风趣</Option>
                         <Option value="dramatic">戏剧化</Option>
                         <Option value="educational">教育讲解</Option>
+                        <Option value="storytelling">故事叙述</Option>
                       </Select>
-                      <Button size="small" icon={<SettingOutlined />}>高级设置</Button>
-                    </Space>
+                      
+                      <Button 
+                        size="small" 
+                        type="link" 
+                        icon={<ReloadOutlined />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          regenerateSegment(segment.id);
+                        }}
+                      >
+                        重新生成
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 
@@ -600,6 +797,14 @@ const ScriptEditor: React.FC = () => {
                       保存解说
                     </Button>
                     
+                    <Button 
+                      icon={<PlusOutlined />} 
+                      onClick={handleAdd}
+                      style={{ marginRight: 8 }}
+                    >
+                      添加段落
+                    </Button>
+                    
                     <Dropdown 
                       overlay={
                         <Menu>
@@ -621,13 +826,28 @@ const ScriptEditor: React.FC = () => {
                     </Dropdown>
                   </Space>
                   
-                  <Button 
-                    type="primary" 
-                    ghost
-                    icon={<PlayCircleOutlined />}
-                  >
-                    完整预览
-                  </Button>
+                  <Tooltip title="查看完整解说文案">
+                    <Button 
+                      type="primary" 
+                      ghost
+                      icon={<PlayCircleOutlined />}
+                      onClick={() => {
+                        Modal.info({
+                          title: '解说文案完整预览',
+                          width: 600,
+                          content: (
+                            <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
+                              {fullScript.split('\n').map((line, index) => (
+                                <Paragraph key={index}>{line || <br />}</Paragraph>
+                              ))}
+                            </div>
+                          )
+                        });
+                      }}
+                    >
+                      完整预览
+                    </Button>
+                  </Tooltip>
                 </div>
               </Card>
             </Col>
@@ -705,27 +925,68 @@ const ScriptEditor: React.FC = () => {
                 )}
               </Card>
               
-              <Card title="解说风格设置" style={{ marginBottom: 24 }}>
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ marginBottom: 8 }}>
-                    <Text strong>解说风格</Text>
+              <Card 
+                title={<span style={{ fontSize: 16 }}><RobotOutlined /> 解说风格设置</span>}
+                style={{ marginBottom: 24 }}
+                bordered={false}
+                className="style-settings-card"
+              >
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text strong style={{ fontSize: 15 }}>解说风格</Text>
+                    <Tooltip title="选择适合你视频内容的解说风格">
+                      <QuestionCircleOutlined style={{ color: '#1890ff', cursor: 'pointer' }} />
+                    </Tooltip>
                   </div>
                   <Select
-                    defaultValue={scriptStyle}
+                    value={scriptStyle}
                     onChange={setScriptStyle}
                     style={{ width: '100%' }}
+                    size="large"
+                    dropdownStyle={{ padding: '8px 4px' }}
                   >
-                    <Option value="professional">专业解说</Option>
-                    <Option value="humorous">幽默风趣</Option>
-                    <Option value="dramatic">戏剧化</Option>
-                    <Option value="educational">教育讲解</Option>
-                    <Option value="storytelling">故事叙述</Option>
+                    <Option value="professional">
+                      <div style={{ padding: '4px 0' }}>
+                        <div style={{ fontWeight: 500 }}>专业解说</div>
+                        <div style={{ fontSize: 12, color: '#888' }}>适合正式场合、知识性内容</div>
+                      </div>
+                    </Option>
+                    <Option value="humorous">
+                      <div style={{ padding: '4px 0' }}>
+                        <div style={{ fontWeight: 500 }}>幽默风趣</div>
+                        <div style={{ fontSize: 12, color: '#888' }}>活泼生动，适合轻松娱乐内容</div>
+                      </div>
+                    </Option>
+                    <Option value="dramatic">
+                      <div style={{ padding: '4px 0' }}>
+                        <div style={{ fontWeight: 500 }}>戏剧化</div>
+                        <div style={{ fontSize: 12, color: '#888' }}>强调张力，适合情节剧或故事性内容</div>
+                      </div>
+                    </Option>
+                    <Option value="educational">
+                      <div style={{ padding: '4px 0' }}>
+                        <div style={{ fontWeight: 500 }}>教育讲解</div>
+                        <div style={{ fontSize: 12, color: '#888' }}>清晰明了，适合教学或说明类内容</div>
+                      </div>
+                    </Option>
+                    <Option value="storytelling">
+                      <div style={{ padding: '4px 0' }}>
+                        <div style={{ fontWeight: 500 }}>故事叙述</div>
+                        <div style={{ fontSize: 12, color: '#888' }}>讲故事式风格，适合叙事性内容</div>
+                      </div>
+                    </Option>
                   </Select>
                 </div>
                 
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ marginBottom: 8 }}>
-                    <Text strong>情感程度</Text>
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text strong style={{ fontSize: 15 }}>情感程度</Text>
+                    <div>
+                      <span style={{ marginRight: 8, fontSize: 14 }}>当前: {emotionLevel}</span>
+                      <Tooltip title="调整解说的情感表达强度">
+                        <QuestionCircleOutlined style={{ color: '#1890ff', cursor: 'pointer' }} />
+                      </Tooltip>
+                    </div>
                   </div>
                   <Slider 
                     marks={{
@@ -735,14 +996,23 @@ const ScriptEditor: React.FC = () => {
                     }}
                     min={1} 
                     max={5} 
-                    defaultValue={emotionLevel}
+                    value={emotionLevel}
                     onChange={(value) => setEmotionLevel(value)}
+                    tooltip={{ formatter: (value) => `${value}` }}
+                    trackStyle={{ backgroundColor: '#1890ff' }}
+                    handleStyle={{ borderColor: '#1890ff', boxShadow: '0 0 0 2px rgba(24, 144, 255, 0.2)' }}
                   />
                 </div>
                 
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ marginBottom: 8 }}>
-                    <Text strong>细节程度</Text>
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text strong style={{ fontSize: 15 }}>细节程度</Text>
+                    <div>
+                      <span style={{ marginRight: 8, fontSize: 14 }}>当前: {detailLevel}</span>
+                      <Tooltip title="调整解说内容的详细程度">
+                        <QuestionCircleOutlined style={{ color: '#1890ff', cursor: 'pointer' }} />
+                      </Tooltip>
+                    </div>
                   </div>
                   <Slider 
                     marks={{
@@ -752,24 +1022,34 @@ const ScriptEditor: React.FC = () => {
                     }}
                     min={1} 
                     max={5} 
-                    defaultValue={detailLevel}
+                    value={detailLevel}
                     onChange={(value) => setDetailLevel(value)}
+                    tooltip={{ formatter: (value) => `${value}` }}
+                    trackStyle={{ backgroundColor: '#1890ff' }}
+                    handleStyle={{ borderColor: '#1890ff', boxShadow: '0 0 0 2px rgba(24, 144, 255, 0.2)' }}
                   />
                 </div>
                 
-                <div style={{ marginTop: 24 }}>
+                <Divider style={{ margin: '16px 0' }} />
+                
+                <div style={{ marginTop: 16 }}>
                   <Button 
                     type="primary" 
                     block 
-                    icon={<RobotOutlined />} 
+                    size="large"
+                    icon={<ThunderboltOutlined />} 
                     loading={loading}
                     onClick={generateScript}
+                    style={{ height: 48, fontSize: 16, fontWeight: 500 }}
                   >
-                    生成解说文案
+                    智能生成解说文案
                   </Button>
-                  <Text type="secondary" style={{ display: 'block', marginTop: 8, textAlign: 'center' }}>
-                    根据视频内容和设置生成专业解说
-                  </Text>
+                  <div style={{ marginTop: 12, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                    <BulbOutlined style={{ color: '#faad14', marginRight: 8 }} />
+                    <Text type="secondary" style={{ fontSize: 13 }}>
+                      根据视频内容和设置生成专业解说，AI将分析视频内容并自动匹配最佳表达
+                    </Text>
+                  </div>
                 </div>
               </Card>
             </Col>
@@ -803,47 +1083,83 @@ const ScriptEditor: React.FC = () => {
 
       {/* 编辑模态框 */}
       <Modal
-        title={currentSegment && scriptSegments.some(item => item.id === currentSegment.id) ? "编辑解说" : "添加解说"}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {currentSegment && scriptSegments.some(item => item.id === currentSegment.id) ? 
+              <><EditOutlined style={{ marginRight: 8, color: '#1890ff' }} /> 编辑解说片段</> : 
+              <><PlusOutlined style={{ marginRight: 8, color: '#52c41a' }} /> 添加新的解说片段</>}
+          </div>
+        }
         open={isEditModalVisible}
         onOk={currentSegment && scriptSegments.some(item => item.id === currentSegment.id) ? handleSave : handleAddSave}
         onCancel={() => setIsEditModalVisible(false)}
-        okText="保存"
+        okText="保存片段"
         cancelText="取消"
-        width={600}
+        width={700}
+        centered
+        bodyStyle={{ padding: '24px 32px' }}
+        okButtonProps={{ icon: <SaveOutlined /> }}
       >
         <Form
           form={form}
           layout="vertical"
+          requiredMark="optional"
         >
-          <Form.Item
-            name="startTime"
-            label="开始时间(秒)"
-            rules={[{ required: true, message: '请输入开始时间' }]}
-          >
-            <Slider min={0} max={videoDuration - 1} step={0.1} />
-          </Form.Item>
-          
-          <Form.Item
-            name="duration"
-            label="持续时间(秒)"
-            rules={[{ required: true, message: '请输入持续时间' }]}
-          >
-            <Slider min={1} max={60} step={0.1} />
-          </Form.Item>
-          
-          <Form.Item
-            name="content"
-            label="解说内容"
-            rules={[{ required: true, message: '请输入解说内容' }]}
-          >
-            <TextArea rows={6} placeholder="请输入解说内容..." />
-          </Form.Item>
+          <Row gutter={24}>
+            <Col span={12}>
+              <Form.Item
+                name="startTime"
+                label={
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span>开始时间</span>
+                    <span style={{ color: '#888', fontWeight: 'normal' }}>
+                      {form.getFieldValue('startTime') !== undefined ? formatTime(form.getFieldValue('startTime')) : '00:00:00'}
+                    </span>
+                  </div>
+                }
+                rules={[{ required: true, message: '请设置开始时间' }]}
+              >
+                <Slider 
+                  min={0} 
+                  max={videoDuration - 1} 
+                  step={0.1} 
+                  tooltip={{ formatter: (value) => formatTime(value || 0) }}
+                  trackStyle={{ backgroundColor: '#1890ff' }}
+                  handleStyle={{ borderColor: '#1890ff', boxShadow: '0 0 0 2px rgba(24, 144, 255, 0.2)' }}
+                />
+              </Form.Item>
+            </Col>
+            
+            <Col span={12}>
+              <Form.Item
+                name="duration"
+                label={
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span>持续时间</span>
+                    <span style={{ color: '#888', fontWeight: 'normal' }}>
+                      {form.getFieldValue('duration') !== undefined ? `${form.getFieldValue('duration').toFixed(1)}秒` : '5.0秒'}
+                    </span>
+                  </div>
+                }
+                rules={[{ required: true, message: '请设置持续时间' }]}
+              >
+                <Slider 
+                  min={1} 
+                  max={60} 
+                  step={0.1} 
+                  tooltip={{ formatter: (value) => `${value?.toFixed(1) || 0}秒` }}
+                  trackStyle={{ backgroundColor: '#1890ff' }}
+                  handleStyle={{ borderColor: '#1890ff', boxShadow: '0 0 0 2px rgba(24, 144, 255, 0.2)' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
           
           <Form.Item
             name="style"
-            label="解说风格"
+            label="片段风格"
           >
-            <Select>
+            <Select placeholder="选择此片段的风格（可选）">
               <Option value="professional">专业解说</Option>
               <Option value="humorous">幽默风趣</Option>
               <Option value="dramatic">戏剧化</Option>
@@ -851,6 +1167,63 @@ const ScriptEditor: React.FC = () => {
               <Option value="storytelling">故事叙述</Option>
             </Select>
           </Form.Item>
+          
+          <Form.Item
+            name="content"
+            label={
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                <span>解说内容</span>
+                <span style={{ color: '#888', fontWeight: 'normal' }}>
+                  {form.getFieldValue('content') ? `${form.getFieldValue('content').length} 字符` : '0 字符'}
+                </span>
+              </div>
+            }
+            rules={[{ required: true, message: '请输入解说内容' }]}
+          >
+            <TextArea 
+              rows={8} 
+              placeholder="请输入解说内容..."
+              showCount 
+              maxLength={500}
+              style={{ resize: 'none', fontSize: 14 }}
+              onChange={(e) => {
+                form.setFieldsValue({ content: e.target.value });
+                form.validateFields(['content']);
+              }}
+            />
+          </Form.Item>
+          
+          <div style={{ textAlign: 'right' }}>
+            <Button 
+              type="default"
+              icon={<PlayCircleOutlined />}
+              style={{ marginRight: 8 }}
+              onClick={() => {
+                const values = form.getFieldsValue();
+                if (values.startTime !== undefined) {
+                  const video = document.getElementById('previewVideo') as HTMLVideoElement;
+                  if (video) {
+                    video.currentTime = values.startTime;
+                    video.play();
+                  }
+                }
+              }}
+            >
+              预览时间点
+            </Button>
+            <Button 
+              icon={<ReloadOutlined />}
+              onClick={() => {
+                if (currentSegment && scriptSegments.some(item => item.id === currentSegment.id)) {
+                  regenerateSegment(currentSegment.id);
+                  setIsEditModalVisible(false);
+                }
+              }}
+              disabled={!(currentSegment && scriptSegments.some(item => item.id === currentSegment.id))}
+            >
+              AI重新生成
+            </Button>
+          </div>
         </Form>
       </Modal>
       
