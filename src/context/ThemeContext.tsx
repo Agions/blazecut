@@ -1,21 +1,15 @@
-import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { ConfigProvider } from 'antd';
-import { getTheme } from '../styles/theme';
+import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import { ConfigProvider, theme } from 'antd';
+import zhCN from 'antd/locale/zh_CN';
 
-type ThemeType = 'light' | 'dark' | 'system';
-
-interface ThemeContextType {
-  theme: ThemeType;
-  setTheme: (theme: ThemeType) => void;
-  toggleTheme: () => void;
+type ThemeContextType = {
   isDarkMode: boolean;
-}
+  toggleTheme: () => void;
+};
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'light',
-  setTheme: () => {},
+  isDarkMode: false,
   toggleTheme: () => {},
-  isDarkMode: false
 });
 
 interface ThemeProviderProps {
@@ -23,95 +17,63 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [theme, setTheme] = useState<ThemeType>(() => {
-    // 从 localStorage 获取主题设置，如果没有则使用默认值
-    const savedTheme = localStorage.getItem('theme') as ThemeType;
-    return savedTheme || 'light';
-  });
-  
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
-  
-  // 监听系统主题变化
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
-    const handleChange = () => {
-      if (theme === 'system') {
-        setIsDarkMode(mediaQuery.matches);
-      }
-    };
-    
-    mediaQuery.addEventListener('change', handleChange);
-    
-    // 初始检查
-    if (theme === 'system') {
-      setIsDarkMode(mediaQuery.matches);
+    // 从localStorage加载主题设置
+    const storedTheme = localStorage.getItem('theme');
+    if (storedTheme === 'dark') {
+      setIsDarkMode(true);
     } else {
-      setIsDarkMode(theme === 'dark');
+      // 也可以根据系统主题来设置
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setIsDarkMode(prefersDark);
     }
     
-    // 应用主题到body元素
-    document.body.classList.toggle('dark-mode', isDarkMode);
-    document.body.style.backgroundColor = isDarkMode ? '#121212' : '#f5f7fa';
-    document.body.style.color = isDarkMode ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.85)';
-    
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [theme, isDarkMode]);
-  
-  // 当主题改变时，更新 localStorage 和文档类
+    // 根据主题设置修改body类
+    updateBodyClass(isDarkMode);
+  }, []);
+
   useEffect(() => {
-    localStorage.setItem('theme', theme);
-    
-    // 更新 html 类以应用主题
-    const htmlElement = document.documentElement;
-    if (isDarkMode) {
-      htmlElement.classList.add('dark-theme');
-      htmlElement.classList.remove('light-theme');
+    // 更新localStorage和body类
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+    updateBodyClass(isDarkMode);
+  }, [isDarkMode]);
+
+  const updateBodyClass = (dark: boolean) => {
+    if (dark) {
+      document.body.classList.add('dark-theme');
     } else {
-      htmlElement.classList.add('light-theme');
-      htmlElement.classList.remove('dark-theme');
-    }
-    
-    // 通过 CSS 变量设置主题颜色
-    if (isDarkMode) {
-      htmlElement.style.setProperty('--bg-color', '#141414');
-      htmlElement.style.setProperty('--card-bg-color', '#1f1f1f');
-      htmlElement.style.setProperty('--text-color', '#ffffff');
-      htmlElement.style.setProperty('--border-color', '#303030');
-    } else {
-      htmlElement.style.setProperty('--bg-color', '#f0f2f5');
-      htmlElement.style.setProperty('--card-bg-color', '#ffffff');
-      htmlElement.style.setProperty('--text-color', '#000000');
-      htmlElement.style.setProperty('--border-color', '#e8e8e8');
-    }
-  }, [theme, isDarkMode]);
-  
-  // 更新主题并考虑系统设置
-  const handleSetTheme = (newTheme: ThemeType) => {
-    setTheme(newTheme);
-    
-    if (newTheme === 'system') {
-      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setIsDarkMode(isDark);
-    } else {
-      setIsDarkMode(newTheme === 'dark');
+      document.body.classList.remove('dark-theme');
     }
   };
-  
+
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    setIsDarkMode(!isDarkMode);
   };
-  
-  // 获取当前主题配置
-  const currentTheme = getTheme(isDarkMode);
+
+  // Ant Design的主题配置
+  const { defaultAlgorithm, darkAlgorithm } = theme;
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme: handleSetTheme, toggleTheme, isDarkMode }}>
-      <ConfigProvider theme={currentTheme}>
+    <ThemeContext.Provider value={{ isDarkMode, toggleTheme }}>
+      <ConfigProvider
+        locale={zhCN}
+        theme={{
+          algorithm: isDarkMode ? darkAlgorithm : defaultAlgorithm,
+          token: {
+            colorPrimary: '#1890ff',
+            borderRadius: 4,
+          },
+        }}
+      >
         {children}
       </ConfigProvider>
     </ThemeContext.Provider>
   );
 };
 
-export default ThemeContext;
+// 自定义Hook，方便在组件中使用主题上下文
+export const useTheme = () => useContext(ThemeContext);
+
+export default ThemeContext; 

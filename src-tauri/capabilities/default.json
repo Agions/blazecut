@@ -6,23 +6,6 @@
     "main"
   ],
   "permissions": [
-    "core:default",
-    {
-      "identifier": "fs:scope",
-      "allow": [
-        {
-          "path": "$APPDATA"
-        },
-        {
-          "path": "$APPDATA/**"
-        },
-        {
-          "path": "$DOWNLOAD"
-        },
-        {
-          "path": "$DOWNLOAD/**"
-        }
-      ]
-    }
+    "core:default"
   ]
 }

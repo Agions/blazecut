@@ -6,37 +6,34 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "test": "vitest",
-    "format": "prettier --write \"src/**/*.{ts,tsx,css,md}\""
+    "tauri": "tauri"
   },
   "dependencies": {
-    "@ant-design/icons": "^5.3.0",
-    "@ant-design/pro-components": "^2.6.49",
-    "antd": "^5.14.1",
-    "axios": "^1.6.7",
-    "dayjs": "^1.11.10",
+    "@ant-design/icons": "^6.0.0",
+    "@tauri-apps/api": "^1.5.1",
+    "@types/lodash": "^4.17.16",
+    "@types/react": "^18.2.15",
+    "@types/react-dom": "^18.2.7",
+    "@types/uuid": "^9.0.7",
+    "antd": "^5.11.1",
+    "axios": "^1.6.0",
+    "dayjs": "^1.11.13",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
+    "less": "^4.2.0",
     "lodash": "^4.17.21",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.22.1",
-    "zustand": "^4.5.1"
+    "react-router-dom": "^6.18.0",
+    "uuid": "^9.0.1",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
-    "@types/lodash": "^4.14.202",
-    "@types/node": "^20.11.19",
-    "@types/react": "^18.2.55",
-    "@types/react-dom": "^18.2.19",
-    "@typescript-eslint/eslint-plugin": "^6.21.0",
-    "@typescript-eslint/parser": "^6.21.0",
-    "@vitejs/plugin-react": "^4.2.1",
-    "eslint": "^8.56.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.5",
-    "prettier": "^3.2.5",
-    "typescript": "^5.2.2",
-    "vite": "^5.1.0",
-    "vitest": "^1.2.2"
+    "@tauri-apps/cli": "^1.5.6",
+    "@types/node": "^20.8.10",
+    "@vitejs/plugin-react": "^4.0.3",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.4"
   }
 }
