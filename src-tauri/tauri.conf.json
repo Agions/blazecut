@@ -1,42 +1,10 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "BlazeCut",
-  "version": "0.1.0",
-  "identifier": "com.blazecut.app",
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "build": {
-    "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
     "devPath": "http://localhost:1420",
-    "distDir": "../dist",
-    "withGlobalTauri": false
-  },
-  "app": {
-    "windows": [
-      {
-        "title": "BlazeCut - AI驱动的视频解说脚本生成工具",
-        "width": 1280,
-        "height": 800,
-        "resizable": true,
-        "fullscreen": false,
-        "theme": "Light"
-      }
-    ],
-    "security": {
-      "csp": null
-    }
-  },
-  "bundle": {
-    "active": true,
-    "targets": "all",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ]
+    "distDir": "../dist"
   },
   "package": {
     "productName": "BlazeCut",
@@ -44,50 +12,39 @@
   },
   "tauri": {
     "allowlist": {
-      "all": false,
-      "dialog": {
-        "all": true,
-        "ask": true,
-        "confirm": true,
-        "message": true,
-        "open": true,
-        "save": true
-      },
       "fs": {
         "all": true,
         "readFile": true,
         "writeFile": true,
         "readDir": true,
-        "copyFile": true,
+        "exists": true,
         "createDir": true,
-        "removeDir": true,
-        "removeFile": true,
-        "renameFile": true,
-        "exists": true
+        "scope": ["$APPDATA/*", "$APPDATA/blazecut/*", "$APPCONFIG/*", "$TEMP/*", "$RESOURCE/*"]
       },
       "path": {
         "all": true
       },
-      "shell": {
-        "all": false,
-        "open": true
+      "clipboard": {
+        "all": true
+      },
+      "dialog": {
+        "all": true
       },
       "window": {
         "all": true
       },
-      "clipboard": {
-        "all": true,
-        "writeText": true,
-        "readText": true
-      },
-      "notification": {
-        "all": true
+      "shell": {
+        "open": true
       }
     },
     "bundle": {
       "active": true,
-      "targets": "all",
-      "identifier": "com.tauri.blazecut",
+      "category": "DeveloperTool",
+      "copyright": "",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
       "icon": [
         "icons/32x32.png",
         "icons/128x128.png",
@@ -95,8 +52,23 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "category": "Productivity",
-      "copyright": "© 2023 BlazeCut Team"
+      "identifier": "com.blazecut.dev",
+      "longDescription": "",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
+      },
+      "resources": [],
+      "shortDescription": "",
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": ""
+      }
     },
     "security": {
       "csp": null
@@ -106,13 +78,15 @@
     },
     "windows": [
       {
+        "title": "BlazeCut - 视频脚本编辑工具",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true,
         "fullscreen": false,
         "resizable": true,
-        "title": "BlazeCut - AI驱动的视频解说脚本生成工具",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 960,
-        "minHeight": 600
+        "theme": "Light"
       }
     ]
   }

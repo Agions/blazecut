@@ -3,27 +3,141 @@
 }
 
 .header {
-  display: flex;
-  align-items: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
   padding: 0 24px;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
-
-  .logo {
-    font-size: 20px;
-    font-weight: bold;
-    color: #1890ff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--card-bg-color);
+  box-shadow: var(--box-shadow);
+  height: 64px;
+  
+  :global(.dark-theme) & {
+    background: var(--card-bg-color);
   }
 }
 
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.menuButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--primary-color);
+  cursor: pointer;
+  transition: color 0.3s;
+  
+  &:hover {
+    color: var(--primary-color-hover);
+  }
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .sider {
-  background: #fff;
-  border-right: 1px solid #f0f0f0;
+  position: fixed !important;
+  left: 0;
+  height: calc(100vh - 64px) !important;
+  top: 64px;
+  background: var(--card-bg-color) !important;
+  border-right: 1px solid var(--border-color);
+  z-index: 999;
+  transition: all 0.3s;
+  
+  :global(.dark-theme) & {
+    background: var(--card-bg-color) !important;
+    border-right-color: var(--border-color);
+  }
+  
+  :global(.ant-layout-sider-children) {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.12);
+    border-radius: 3px;
+    
+    :global(.dark-theme) & {
+      background: rgba(255, 255, 255, 0.12);
+    }
+  }
 }
 
 .content {
-  background: #fff;
+  margin-top: 64px;
+  min-height: calc(100vh - 64px);
+  background: var(--bg-color);
+  transition: all 0.3s;
+  
+  :global(.dark-theme) & {
+    background: var(--bg-color);
+  }
+}
+
+.contentInner {
   padding: 24px;
-  min-height: 280px;
-  border-radius: 4px;
+  min-height: 100%;
+}
+
+// 响应式设计
+@media screen and (max-width: 768px) {
+  .header {
+    padding: 0 16px;
+  }
+  
+  .contentInner {
+    padding: 16px;
+  }
+  
+  .logo {
+    font-size: 18px;
+  }
+  
+  .headerRight {
+    gap: 4px;
+  }
+}
+
+// 动画
+.menuItem {
+  position: relative;
+  overflow: hidden;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background-color: var(--primary-color);
+    transition: width 0.3s;
+  }
+  
+  &:hover::after {
+    width: 100%;
+  }
 } 

@@ -181,4 +181,83 @@
   background-color: #fafafa;
   border-radius: 8px;
   margin-top: 16px;
+}
+
+.segmentList {
+  margin-top: 16px;
+}
+
+.segment {
+  margin-bottom: 16px;
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  padding: 16px;
+  background-color: #fff;
+  transition: all 0.3s;
+  
+  &:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+  }
+}
+
+.segmentHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.segmentTime {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1890ff;
+}
+
+.segmentType {
+  margin-left: 8px;
+}
+
+.segmentContent {
+  margin-top: 8px;
+  white-space: pre-line;
+}
+
+.editForm {
+  margin-top: 24px;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+}
+
+.timeInput {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timeSeparator {
+  margin: 0 8px;
+}
+
+:global(.dark-theme) {
+  .segment {
+    background-color: #1f1f1f;
+    border-color: #303030;
+    
+    &:hover {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+  }
+  
+  .segmentTime {
+    color: #1890ff;
+  }
+  
+  .segmentContent {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  
+  .editForm {
+    background-color: #141414;
+  }
 } 

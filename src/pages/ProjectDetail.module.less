@@ -7,20 +7,16 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
-
-  h2 {
-    margin: 0;
-    font-size: 24px;
-    font-weight: bold;
-  }
+  flex-wrap: wrap;
+  gap: 16px;
 }
 
 .descriptionCard {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 
 .scriptSection {
-  margin-top: 24px;
+  margin-top: 32px;
 }
 
 .scriptHeader {
@@ -28,13 +24,21 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.scriptHeader h4 {
+  margin: 0;
 }
 
 .emptyScript {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 200px;
+  height: 200px;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .card {
@@ -61,4 +65,18 @@
   justify-content: center;
   align-items: center;
   min-height: 400px;
+}
+
+:global(.dark-theme) {
+  .container {
+    background-color: #141414;
+  }
+  
+  .header h2 {
+    color: rgba(255, 255, 255, 0.85);
+  }
+  
+  .scriptHeader h4 {
+    color: rgba(255, 255, 255, 0.85);
+  }
 } 

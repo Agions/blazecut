@@ -17,7 +17,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "1.5", features = [] }
 
 [dependencies]
-tauri = { version = "1.5", features = ["shell-open", "dialog-open", "dialog-save", "fs-read-file", "fs-write-file", "fs-read-dir", "fs-create-dir", "fs-remove-dir", "fs-remove-file", "fs-exists", "path-all"] }
+tauri = { version = "1.5", features = [ "fs-all", "clipboard-all", "window-all", "dialog-all", "shell-open", "path-all"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

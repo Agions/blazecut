@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, Steps, Space, message } from 'antd';
+import { Form, Input, Button, Card, Steps, Space, message, Alert, Typography } from 'antd';
 import { ArrowLeftOutlined, SaveOutlined, VideoCameraOutlined, FormOutlined } from '@ant-design/icons';
 import { v4 as uuidv4 } from 'uuid';
 import { useStore } from '@/store';
@@ -9,7 +9,7 @@ import { saveProjectToFile } from '@/services/tauriService';
 import styles from './ProjectEdit.module.less';
 
 const { TextArea } = Input;
-const { Step } = Steps;
+const { Title, Text } = Typography;
 
 const ProjectEdit: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +20,7 @@ const ProjectEdit: React.FC = () => {
   const [videoPath, setVideoPath] = useState('');
   const [loading, setLoading] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 如果是编辑模式，加载项目数据
   useEffect(() => {
@@ -34,29 +35,36 @@ const ProjectEdit: React.FC = () => {
         setIsEdit(true);
         setCurrentStep(1); // 跳过选择视频步骤
       } else {
-        message.error('找不到项目');
+        setError('找不到项目');
         navigate('/projects');
       }
     }
   }, [id, projects, form, navigate]);
 
   const handleVideoSelected = (path: string, filename: string) => {
-    setVideoPath(path);
-    // 从文件名预填充项目名称
-    const projectName = filename.replace(/\.[^/.]+$/, ""); // 移除扩展名
-    form.setFieldsValue({ name: projectName });
-    
-    // 前进到下一步
-    setCurrentStep(1);
+    try {
+      setError(null);
+      setVideoPath(path);
+      // 从文件名预填充项目名称
+      const projectName = filename.replace(/\.[^/.]+$/, ""); // 移除扩展名
+      form.setFieldsValue({ name: projectName });
+      
+      // 前进到下一步
+      setCurrentStep(1);
+    } catch (error) {
+      console.error('处理视频选择失败:', error);
+      setError('处理视频选择失败，请重试');
+    }
   };
 
   const handleSubmit = async () => {
     try {
       setLoading(true);
+      setError(null);
       const values = await form.validateFields();
       
       if (!videoPath) {
-        message.error('请先选择视频文件');
+        setError('请先选择视频文件');
         setLoading(false);
         return;
       }
@@ -73,17 +81,18 @@ const ProjectEdit: React.FC = () => {
             updatedAt: new Date().toISOString()
           };
           
-          updateProject(updatedProject);
-          
-          // 保存到文件
           try {
+            // 先保存到文件
             await saveProjectToFile(updatedProject);
+            // 更新状态
+            updateProject(updatedProject);
+            message.success('项目更新成功');
+            navigate(`/projects/${id}`);
           } catch (error) {
             console.error('保存项目文件失败:', error);
+            setError('保存项目文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
+            return;
           }
-          
-          message.success('项目更新成功');
-          navigate(`/projects/${id}`);
         }
       } else {
         // 创建新项目
@@ -98,22 +107,23 @@ const ProjectEdit: React.FC = () => {
           updatedAt: new Date().toISOString()
         };
         
-        // 添加到store
-        addProject(newProject);
-        
-        // 保存到文件
         try {
+          // 先保存到文件
           await saveProjectToFile(newProject);
+          // 更新状态
+          addProject(newProject);
+          message.success('项目创建成功');
+          navigate(`/projects/${newProject.id}`);
         } catch (error) {
           console.error('保存项目文件失败:', error);
+          setError('保存项目文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
+          return;
         }
-        
-        message.success('项目创建成功');
-        navigate(`/projects/${newProject.id}`);
       }
     } catch (error) {
       console.error('保存项目失败:', error);
-      message.error('保存失败，请重试');
+      setError(error instanceof Error ? error.message : '保存失败，请重试');
+    } finally {
       setLoading(false);
     }
   };
@@ -121,54 +131,106 @@ const ProjectEdit: React.FC = () => {
   const steps = [
     {
       title: '选择视频',
-      content: <VideoSelector onVideoSelected={handleVideoSelected} />,
+      content: (
+        <div style={{padding: '20px 0'}}>
+          <VideoSelector onVideoSelected={handleVideoSelected} />
+        </div>
+      ),
       icon: <VideoCameraOutlined />
     },
     {
       title: '项目信息',
       content: (
-        <Form
-          form={form}
-          layout="vertical"
-          initialValues={{ name: '', description: '' }}
-        >
-          <Form.Item
-            name="name"
-            label="项目名称"
-            rules={[{ required: true, message: '请输入项目名称' }]}
+        <div className={styles.formContainer}>
+          <Form
+            form={form}
+            layout="vertical"
+            initialValues={{ name: '', description: '' }}
           >
-            <Input placeholder="输入项目名称" />
-          </Form.Item>
-          
-          <Form.Item
-            name="description"
-            label="项目描述"
-          >
-            <TextArea 
-              placeholder="输入项目描述（可选）" 
-              autoSize={{ minRows: 3, maxRows: 6 }}
-            />
-          </Form.Item>
-          
-          <Form.Item>
-            <Space>
+            {error && (
+              <Form.Item>
+                <Alert
+                  message="错误"
+                  description={error}
+                  type="error"
+                  showIcon
+                  closable
+                  onClose={() => setError(null)}
+                />
+              </Form.Item>
+            )}
+  
+            <Form.Item
+              name="name"
+              label={<span className="form-label">项目名称</span>}
+              rules={[
+                { required: true, message: '请输入项目名称' },
+                { max: 50, message: '项目名称不能超过50个字符' }
+              ]}
+            >
+              <Input placeholder="输入项目名称" size="large" style={{ fontSize: '16px' }} className="dark-mode-input" />
+            </Form.Item>
+            
+            {videoPath && (
+              <Form.Item 
+                label={<span className="form-label">视频文件</span>}
+              >
+                <Text type="secondary" style={{wordBreak: 'break-all', fontSize: '14px', lineHeight: '1.8' }} className="file-path-text">
+                  {videoPath}
+                </Text>
+                {!isEdit && (
+                  <Button 
+                    type="link" 
+                    onClick={() => setCurrentStep(0)}
+                    style={{paddingLeft: 0}}
+                  >
+                    重新选择
+                  </Button>
+                )}
+              </Form.Item>
+            )}
+            
+            <Form.Item
+              name="description"
+              label={<span className="form-label">项目描述</span>}
+              rules={[
+                { max: 500, message: '项目描述不能超过500个字符' }
+              ]}
+            >
+              <TextArea 
+                placeholder="输入项目描述（可选）" 
+                autoSize={{ minRows: 4, maxRows: 8 }}
+                size="large"
+                style={{ fontSize: '15px', lineHeight: '1.6' }}
+                className="dark-mode-input"
+              />
+            </Form.Item>
+            
+            <div className={styles.formButtons}>
               <Button 
                 type="primary" 
                 icon={<SaveOutlined />} 
                 onClick={handleSubmit}
                 loading={loading}
+                size="large"
               >
                 {isEdit ? '更新项目' : '保存项目'}
               </Button>
               
-              {!isEdit && (
-                <Button onClick={() => setCurrentStep(0)}>
+              {!isEdit && currentStep === 1 && (
+                <Button 
+                  onClick={() => {
+                    setCurrentStep(0);
+                    setError(null);
+                  }}
+                  size="large"
+                >
                   返回选择视频
                 </Button>
               )}
-            </Space>
-          </Form.Item>
-        </Form>
+            </div>
+          </Form>
+        </div>
       ),
       icon: <FormOutlined />
     }
@@ -180,6 +242,7 @@ const ProjectEdit: React.FC = () => {
         <Button 
           icon={<ArrowLeftOutlined />} 
           onClick={() => navigate('/projects')}
+          size="large"
         >
           返回项目列表
         </Button>
@@ -187,10 +250,17 @@ const ProjectEdit: React.FC = () => {
       </div>
       
       <Card className={styles.card}>
-        <Steps current={currentStep} items={steps.map(item => ({
-          title: item.title,
-          icon: item.icon
-        }))} />
+        <Steps 
+          current={currentStep} 
+          items={steps.map(item => ({
+            title: item.title,
+            icon: item.icon
+          }))}
+          style={{
+            marginTop: '12px',
+            marginBottom: '12px'
+          }}
+        />
         
         <div className={styles.stepsContent}>
           {steps[currentStep].content}

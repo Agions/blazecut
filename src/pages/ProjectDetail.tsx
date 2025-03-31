@@ -1,30 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Card, Tabs, Space, Typography, message, Modal, Spin } from 'antd';
+import { Button, Card, Tabs, Space, Typography, message, Modal, Spin, Select, Form } from 'antd';
 import { 
   EditOutlined, 
   ArrowLeftOutlined, 
   DeleteOutlined, 
   ExportOutlined,
-  PlusOutlined
+  PlusOutlined,
+  RobotOutlined,
+  LoadingOutlined
 } from '@ant-design/icons';
 import { v4 as uuidv4 } from 'uuid';
 import { useStore } from '@/store';
 import VideoInfo from '@/components/VideoInfo';
 import ScriptEditor from '@/components/ScriptEditor';
 import { exportScriptToFile, saveProjectToFile } from '@/services/tauriService';
+import { generateScript, polishScript } from '@/services/ai';
 import styles from './ProjectDetail.module.less';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
+const { Option } = Select;
 
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { projects, updateProject, deleteProject } = useStore();
   const [loading, setLoading] = useState(true);
+  const [aiLoading, setAiLoading] = useState(false);
   const [project, setProject] = useState<any>(null);
   const [activeScript, setActiveScript] = useState<any>(null);
+  const [scriptStyle, setScriptStyle] = useState<string>('简洁专业');
 
   useEffect(() => {
     if (!id) return;
@@ -47,58 +53,169 @@ const ProjectDetail: React.FC = () => {
   const handleCreateScript = () => {
     if (!project) return;
 
-    const newScript = {
-      id: uuidv4(),
-      videoId: project.id,
-      content: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    try {
+      const newScript = {
+        id: uuidv4(),
+        videoId: project.id,
+        content: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+  
+      const updatedProject = {
+        ...project,
+        scripts: [...(project.scripts || []), newScript],
+        updatedAt: new Date().toISOString()
+      };
+  
+      // 先更新UI
+      setProject(updatedProject);
+      setActiveScript(newScript);
+      
+      // 保存到文件，显示loading
+      message.loading('正在保存脚本...', 0.5);
+      saveProjectToFile(updatedProject)
+        .then(() => {
+          updateProject(updatedProject);
+          message.success('脚本创建成功');
+        })
+        .catch(error => {
+          console.error('保存项目文件失败:', error);
+          message.error('保存项目文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
+          // 回滚UI状态
+          setProject(project);
+          setActiveScript(project.scripts?.[0] || null);
+        });
+    } catch (error) {
+      console.error('创建脚本失败:', error);
+      message.error('创建脚本失败');
+    }
+  };
 
-    const updatedProject = {
-      ...project,
-      scripts: [...(project.scripts || []), newScript],
-      updatedAt: new Date().toISOString()
-    };
-
-    setProject(updatedProject);
-    setActiveScript(newScript);
-    updateProject(updatedProject);
+  const handleGenerateScript = async () => {
+    if (!project || !project.analysis) {
+      message.warning('项目缺少视频分析数据，无法生成脚本');
+      return;
+    }
     
-    // 保存到文件
-    saveProjectToFile(updatedProject)
-      .catch(error => console.error('保存项目文件失败:', error));
+    try {
+      setAiLoading(true);
+      
+      // 使用AI服务生成脚本
+      const generatedScript = await generateScript(project.analysis, scriptStyle);
+      
+      // 更新项目
+      const updatedProject = {
+        ...project,
+        scripts: [...(project.scripts || []), generatedScript],
+        updatedAt: new Date().toISOString()
+      };
+      
+      setProject(updatedProject);
+      setActiveScript(generatedScript);
+      updateProject(updatedProject);
+      
+      // 保存到文件
+      await saveProjectToFile(updatedProject);
+      
+      message.success('脚本生成成功');
+    } catch (error) {
+      console.error('生成脚本失败:', error);
+      message.error('生成脚本失败: ' + (error as Error).message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+  
+  const handlePolishScript = async () => {
+    if (!project || !activeScript) {
+      message.warning('没有选择脚本');
+      return;
+    }
+    
+    if (!activeScript.content || activeScript.content.length === 0) {
+      message.warning('脚本内容为空，无法优化');
+      return;
+    }
+    
+    try {
+      setAiLoading(true);
+      
+      // 使用AI服务优化脚本
+      const polishedScript = await polishScript(activeScript, scriptStyle);
+      
+      // 更新脚本列表
+      const updatedScripts = project.scripts.map((script: any) => 
+        script.id === activeScript.id ? polishedScript : script
+      );
+      
+      // 更新项目
+      const updatedProject = {
+        ...project,
+        scripts: updatedScripts,
+        updatedAt: new Date().toISOString()
+      };
+      
+      setProject(updatedProject);
+      setActiveScript(polishedScript);
+      updateProject(updatedProject);
+      
+      // 保存到文件
+      await saveProjectToFile(updatedProject);
+      
+      message.success('脚本优化成功');
+    } catch (error) {
+      console.error('优化脚本失败:', error);
+      message.error('优化脚本失败: ' + (error as Error).message);
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const handleScriptChange = (segments: any[]) => {
     if (!project || !activeScript) return;
     
-    // 更新脚本内容
-    const updatedScript = {
-      ...activeScript,
-      content: segments,
-      updatedAt: new Date().toISOString()
-    };
-    
-    // 更新脚本列表
-    const updatedScripts = project.scripts.map((script: any) => 
-      script.id === activeScript.id ? updatedScript : script
-    );
-    
-    // 更新项目
-    const updatedProject = {
-      ...project,
-      scripts: updatedScripts,
-      updatedAt: new Date().toISOString()
-    };
-    
-    setProject(updatedProject);
-    setActiveScript(updatedScript);
-    updateProject(updatedProject);
-    
-    // 保存到文件
-    saveProjectToFile(updatedProject)
-      .catch(error => console.error('保存项目文件失败:', error));
+    try {
+      // 更新脚本内容
+      const updatedScript = {
+        ...activeScript,
+        content: segments,
+        updatedAt: new Date().toISOString()
+      };
+      
+      // 更新脚本列表
+      const updatedScripts = project.scripts.map((script: any) => 
+        script.id === activeScript.id ? updatedScript : script
+      );
+      
+      // 更新项目
+      const updatedProject = {
+        ...project,
+        scripts: updatedScripts,
+        updatedAt: new Date().toISOString()
+      };
+      
+      // 先更新UI
+      setProject(updatedProject);
+      setActiveScript(updatedScript);
+      
+      // 保存到文件
+      saveProjectToFile(updatedProject)
+        .then(() => {
+          updateProject(updatedProject);
+          message.success('脚本内容已保存');
+        })
+        .catch(error => {
+          console.error('保存项目文件失败:', error);
+          message.error('保存项目文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
+          // 回滚UI状态
+          setProject(project);
+          setActiveScript(activeScript);
+        });
+    } catch (error) {
+      console.error('更新脚本内容失败:', error);
+      message.error('更新脚本内容失败');
+    }
   };
 
   const handleExportScript = async () => {
@@ -204,13 +321,47 @@ const ProjectDetail: React.FC = () => {
       <div className={styles.scriptSection}>
         <div className={styles.scriptHeader}>
           <Title level={4}>脚本编辑</Title>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />}
-            onClick={handleCreateScript}
-          >
-            创建新脚本
-          </Button>
+          <Space>
+            <Form.Item label="脚本风格" style={{ marginBottom: 0 }}>
+              <Select 
+                value={scriptStyle}
+                onChange={value => setScriptStyle(value)}
+                style={{ width: 120 }}
+              >
+                <Option value="简洁专业">简洁专业</Option>
+                <Option value="生动活泼">生动活泼</Option>
+                <Option value="幽默风趣">幽默风趣</Option>
+                <Option value="严肃正式">严肃正式</Option>
+                <Option value="通俗易懂">通俗易懂</Option>
+              </Select>
+            </Form.Item>
+            
+            <Button 
+              type="primary" 
+              icon={aiLoading ? <LoadingOutlined /> : <RobotOutlined />}
+              onClick={handleGenerateScript}
+              loading={aiLoading}
+              disabled={!project.analysis || aiLoading}
+            >
+              AI生成脚本
+            </Button>
+            
+            <Button 
+              icon={aiLoading ? <LoadingOutlined /> : <RobotOutlined />}
+              onClick={handlePolishScript}
+              loading={aiLoading}
+              disabled={!activeScript || !activeScript.content || activeScript.content.length === 0 || aiLoading}
+            >
+              优化脚本
+            </Button>
+            
+            <Button 
+              icon={<PlusOutlined />}
+              onClick={handleCreateScript}
+            >
+              创建空白脚本
+            </Button>
+          </Space>
         </div>
         
         {project.scripts && project.scripts.length > 0 ? (
@@ -238,7 +389,7 @@ const ProjectDetail: React.FC = () => {
         ) : (
           <Card>
             <div className={styles.emptyScript}>
-              <Text type="secondary">暂无脚本，点击"创建新脚本"按钮添加</Text>
+              <Text type="secondary">暂无脚本，点击"AI生成脚本"或"创建空白脚本"按钮添加</Text>
             </div>
           </Card>
         )}

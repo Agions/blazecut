@@ -11,13 +11,17 @@ export default defineConfig({
 
   // 服务器配置
   server: {
-    port: 5173,
+    port: 1420,
     strictPort: true,
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+    },
   },
 
   // 预览配置
   preview: {
-    port: 5173,
+    port: 1420,
     strictPort: true,
   },
 

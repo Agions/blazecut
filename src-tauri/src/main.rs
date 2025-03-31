@@ -7,6 +7,8 @@ use tauri::command;
 use std::path::{Path, PathBuf};
 use std::fs;
 use std::error::Error;
+use tauri::api::path::{app_data_dir, app_config_dir};
+use tauri::Config;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct VideoMetadata {
@@ -179,6 +181,40 @@ fn generate_thumbnail(path: String) -> Result<String, String> {
     Ok(thumbnail_str.to_string())
 }
 
+/// 检查并创建应用数据目录
+#[command]
+fn check_app_data_directory() -> Result<String, String> {
+    println!("检查应用数据目录");
+    
+    // 获取应用数据目录
+    let config = Config::default();
+    let app_data = app_data_dir(&config).ok_or("无法获取应用数据目录")?;
+    
+    // 创建应用专用目录
+    let blazecut_dir = app_data.join("blazecut");
+    
+    println!("应用数据目录: {:?}", blazecut_dir);
+    
+    // 检查目录是否存在
+    if !blazecut_dir.exists() {
+        println!("目录不存在，创建目录");
+        std::fs::create_dir_all(&blazecut_dir)
+            .map_err(|e| format!("创建应用数据目录失败: {}", e))?;
+    }
+    
+    // 测试文件写入权限
+    let test_file_path = blazecut_dir.join("test_write.tmp");
+    std::fs::write(&test_file_path, "测试写入权限")
+        .map_err(|e| format!("写入权限测试失败: {}", e))?;
+    
+    // 清除测试文件
+    if test_file_path.exists() {
+        let _ = std::fs::remove_file(&test_file_path);
+    }
+    
+    Ok(blazecut_dir.to_string_lossy().to_string())
+}
+
 // 工具函数: 检查FFmpeg是否安装
 fn is_ffmpeg_installed() -> bool {
     let ffmpeg = Command::new("ffmpeg")
@@ -217,11 +253,18 @@ fn random_id() -> String {
 }
 
 fn main() {
+    println!("启动 BlazeCut 应用");
+    
     tauri::Builder::default()
+        .setup(|app| {
+            println!("应用设置初始化");
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             analyze_video,
             extract_key_frames,
-            generate_thumbnail
+            generate_thumbnail,
+            check_app_data_directory
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

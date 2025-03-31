@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/tauri';
 import { open, save } from '@tauri-apps/api/dialog';
 import { readTextFile, writeTextFile, BaseDirectory, createDir, exists } from '@tauri-apps/api/fs';
-import { Store } from '@tauri-apps/api/store';
 import { message } from 'antd';
 import { appConfigDir } from '@tauri-apps/api/path';
 
@@ -9,34 +8,137 @@ import { appConfigDir } from '@tauri-apps/api/path';
 export const ensureAppDataDir = async (): Promise<void> => {
   try {
     const appDir = 'blazecut';
-    const dirExists = await exists(appDir, { dir: BaseDirectory.AppData });
+    
+    // 先尝试使用Rust函数检查目录
+    try {
+      const dirPath = await invoke('check_app_data_directory');
+      console.log('Rust目录检查成功:', dirPath);
+      return;
+    } catch (rustError) {
+      console.warn('Rust目录检查失败，回退到前端检查:', rustError);
+    }
+    
+    // 前端备用检查
+    let dirExists = false;
+    try {
+      dirExists = await exists(appDir, { dir: BaseDirectory.AppData });
+    } catch (existsError) {
+      console.error('检查目录是否存在时出错:', existsError);
+      throw new Error(`检查目录出错: ${existsError instanceof Error ? existsError.message : '未知错误'}`);
+    }
     
     if (!dirExists) {
-      await createDir(appDir, { dir: BaseDirectory.AppData, recursive: true });
+      console.log('应用数据目录不存在，创建目录:', appDir);
+      try {
+        await createDir(appDir, { dir: BaseDirectory.AppData, recursive: true });
+      } catch (createError) {
+        console.error('创建目录失败:', createError);
+        throw new Error(`创建目录失败: ${createError instanceof Error ? createError.message : '未知错误'}`);
+      }
+      
+      // 验证目录是否创建成功
+      try {
+        const checkExists = await exists(appDir, { dir: BaseDirectory.AppData });
+        if (!checkExists) {
+          throw new Error('无法创建应用数据目录，请检查权限');
+        }
+      } catch (verifyError) {
+        console.error('验证目录是否创建成功时出错:', verifyError);
+        throw new Error(`验证目录出错: ${verifyError instanceof Error ? verifyError.message : '未知错误'}`);
+      }
+      console.log('应用数据目录创建成功');
     }
     
     return;
   } catch (error) {
     console.error('创建应用数据目录失败:', error);
+    message.error('创建应用数据目录失败，请检查权限设置');
     throw error;
   }
 };
 
 // 保存项目数据到文件
 export const saveProjectToFile = async (project: any): Promise<void> => {
+  if (!project || !project.id) {
+    console.error('保存项目文件失败: 项目数据无效');
+    throw new Error('无效的项目数据');
+  }
+
   try {
-    await ensureAppDataDir();
+    // 确保目录存在
+    await ensureAppDataDir().catch(err => {
+      console.error('确保应用数据目录存在时出错:', err);
+      throw new Error(`应用数据目录错误: ${err.message || '未知错误'}`);
+    });
     
     const projectPath = `blazecut/${project.id}.json`;
-    await writeTextFile(
-      projectPath,
-      JSON.stringify(project, null, 2),
-      { dir: BaseDirectory.AppData }
-    );
+    console.log('正在保存项目文件:', projectPath);
     
+    // 准备项目数据
+    let projectData: string;
+    try {
+      projectData = JSON.stringify(project, null, 2);
+      if (!projectData) {
+        throw new Error('项目数据序列化为空');
+      }
+    } catch (err) {
+      console.error('序列化项目数据失败:', err);
+      throw new Error('无法序列化项目数据');
+    }
+    
+    // 检查文件是否已存在
+    const fileExists = await exists(projectPath, { dir: BaseDirectory.AppData })
+      .catch(err => {
+        console.error('检查文件是否存在时出错:', err);
+        return false;
+      });
+      
+    console.log(`项目文件${fileExists ? '已存在' : '不存在'}，准备${fileExists ? '更新' : '新建'}`);
+    
+    // 执行写入
+    try {
+      await writeTextFile(
+        projectPath,
+        projectData,
+        { dir: BaseDirectory.AppData }
+      );
+      console.log('文件写入完成');
+    } catch (writeErr: any) {
+      console.error('文件写入失败:', writeErr);
+      throw new Error(`文件写入失败: ${writeErr?.message || '未知错误'}`);
+    }
+    
+    // 验证文件是否写入成功
+    try {
+      const verifyExists = await exists(projectPath, { dir: BaseDirectory.AppData });
+      if (!verifyExists) {
+        throw new Error('文件似乎已写入但无法验证其存在');
+      }
+      console.log('验证文件存在: 成功');
+    } catch (verifyErr: any) {
+      console.error('验证文件存在时出错:', verifyErr);
+      throw new Error(`无法验证文件是否保存成功: ${verifyErr?.message || '未知错误'}`);
+    }
+    
+    // 尝试读取文件验证内容
+    try {
+      await readTextFile(projectPath, { dir: BaseDirectory.AppData });
+      console.log('验证文件可读: 成功');
+    } catch (readErr) {
+      console.error('验证文件可读时出错:', readErr);
+      // 我们不抛出这个错误，因为文件已经写入成功，仅记录日志
+      console.warn('警告: 文件已保存但无法读取进行验证');
+    }
+    
+    console.log('项目文件保存成功:', projectPath);
     return;
   } catch (error) {
     console.error('保存项目文件失败:', error);
+    // 传递更明确的错误信息
+    const errorMessage = error instanceof Error 
+      ? `保存失败: ${error.message}` 
+      : '未知错误';
+    message.error(`保存项目文件失败: ${errorMessage}`);
     throw error;
   }
 };
@@ -136,7 +238,7 @@ export const getApiKey = async (service: string): Promise<string> => {
     }
     
     const configContent = await readTextFile(configPath);
-    const config = JSON.parse(configContent);
+    const config = JSON.parse(configContent) as Record<string, string>;
     
     return config[service] || '';
   } catch (error) {
@@ -158,10 +260,10 @@ export const saveApiKey = async (service: string, apiKey: string): Promise<boole
     const configPath = `${configDir}api_keys.json`;
     const configExists = await exists(configPath);
     
-    let config = {};
+    let config: Record<string, string> = {};
     if (configExists) {
       const configContent = await readTextFile(configPath);
-      config = JSON.parse(configContent);
+      config = JSON.parse(configContent) as Record<string, string>;
     }
     
     config[service] = apiKey;

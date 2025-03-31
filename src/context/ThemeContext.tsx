@@ -1,15 +1,13 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import { ConfigProvider, theme } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-type ThemeContextType = {
+interface ThemeContextType {
   isDarkMode: boolean;
   toggleTheme: () => void;
-};
+}
 
 const ThemeContext = createContext<ThemeContextType>({
   isDarkMode: false,
-  toggleTheme: () => {},
+  toggleTheme: () => {}
 });
 
 interface ThemeProviderProps {
@@ -17,63 +15,52 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   useEffect(() => {
-    // 从localStorage加载主题设置
-    const storedTheme = localStorage.getItem('theme');
-    if (storedTheme === 'dark') {
-      setIsDarkMode(true);
-    } else {
-      // 也可以根据系统主题来设置
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setIsDarkMode(prefersDark);
-    }
+    // 从localStorage读取主题设置
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // 根据主题设置修改body类
-    updateBodyClass(isDarkMode);
+    // 如果有保存的主题设置，使用该设置；否则，使用系统偏好
+    const initialDarkMode = savedTheme 
+      ? savedTheme === 'dark'
+      : prefersDark;
+    
+    setIsDarkMode(initialDarkMode);
+    
+    // 应用主题
+    applyTheme(initialDarkMode);
   }, []);
 
-  useEffect(() => {
-    // 更新localStorage和body类
-    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
-    updateBodyClass(isDarkMode);
-  }, [isDarkMode]);
-
-  const updateBodyClass = (dark: boolean) => {
+  const applyTheme = (dark: boolean) => {
+    const rootElement = document.documentElement;
+    
     if (dark) {
-      document.body.classList.add('dark-theme');
+      rootElement.classList.add('dark-theme');
+      document.body.style.backgroundColor = '#141414';
+      document.body.style.color = 'rgba(255, 255, 255, 0.85)';
     } else {
-      document.body.classList.remove('dark-theme');
+      rootElement.classList.remove('dark-theme');
+      document.body.style.backgroundColor = '#fff';
+      document.body.style.color = 'rgba(0, 0, 0, 0.85)';
     }
   };
 
   const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
+    const newDarkMode = !isDarkMode;
+    setIsDarkMode(newDarkMode);
+    localStorage.setItem('theme', newDarkMode ? 'dark' : 'light');
+    applyTheme(newDarkMode);
   };
-
-  // Ant Design的主题配置
-  const { defaultAlgorithm, darkAlgorithm } = theme;
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, toggleTheme }}>
-      <ConfigProvider
-        locale={zhCN}
-        theme={{
-          algorithm: isDarkMode ? darkAlgorithm : defaultAlgorithm,
-          token: {
-            colorPrimary: '#1890ff',
-            borderRadius: 4,
-          },
-        }}
-      >
-        {children}
-      </ConfigProvider>
+      {children}
     </ThemeContext.Provider>
   );
 };
 
-// 自定义Hook，方便在组件中使用主题上下文
 export const useTheme = () => useContext(ThemeContext);
 
 export default ThemeContext; 

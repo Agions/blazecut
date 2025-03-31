@@ -1,5 +1,54 @@
 .container {
-  margin-top: 16px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.container :global(.ant-card-head) {
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.container :global(.ant-card-body) {
+  padding: 20px;
+}
+
+.container :global(.ant-statistic-title) {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.65);
+  margin-bottom: 8px;
+}
+
+.container :global(.ant-statistic-content) {
+  display: flex;
+  align-items: center;
+}
+
+.container :global(.ant-statistic-content-value) {
+  line-height: 1.2;
+}
+
+.container :global(.anticon) {
+  margin-right: 8px;
+  font-size: 18px;
+  color: #1890ff;
+}
+
+// 适配暗色模式
+:global(.dark-theme) {
+  .container :global(.ant-card-head) {
+    background-color: #1f1f1f;
+    border-bottom: 1px solid #303030;
+  }
+  
+  .container :global(.ant-statistic-title) {
+    color: rgba(255, 255, 255, 0.65);
+  }
+  
+  .container :global(.ant-statistic-content-value) {
+    color: rgba(255, 255, 255, 0.85);
+  }
 }
 
 .videoInfo {

@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, Switch, Button, message, Tabs, Alert, Divider } from 'antd';
 import { SaveOutlined, KeyOutlined, SettingOutlined, ApiOutlined } from '@ant-design/icons';
 import { useTheme } from '@/context/ThemeContext';
+import { getApiKey, saveApiKey, getAppData, saveAppData } from '@/services/tauriService';
 import styles from './Settings.module.less';
 
 const { TabPane } = Tabs;
 
 interface SettingsData {
-  openaiApiKey: string;
-  anthropicApiKey: string;
   autoSave: boolean;
 }
 
@@ -17,27 +16,40 @@ const Settings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const { isDarkMode, toggleTheme } = useTheme();
+  const [openaiApiKey, setOpenaiApiKey] = useState('');
+  const [anthropicApiKey, setAnthropicApiKey] = useState('');
 
   // 加载设置
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        // 从localStorage加载设置
-        const settings: Partial<SettingsData> = {
-          openaiApiKey: localStorage.getItem('openaiApiKey') || '',
-          anthropicApiKey: localStorage.getItem('anthropicApiKey') || '',
-          autoSave: localStorage.getItem('autoSave') === 'true'
-        };
+        setLoading(true);
+        
+        // 从安全存储加载API密钥
+        const openaiKey = await getApiKey('openai');
+        const anthropicKey = await getApiKey('anthropic');
+        
+        // 从应用数据加载其他设置
+        const appSettings = await getAppData<SettingsData>('settings');
+        const autoSave = appSettings?.autoSave ?? true;
+        
+        setOpenaiApiKey(openaiKey);
+        setAnthropicApiKey(anthropicKey);
         
         form.setFieldsValue({
-          ...settings,
+          openaiApiKey: openaiKey,
+          anthropicApiKey: anthropicKey,
+          autoSave,
           darkMode: isDarkMode
         });
+        
         setInitialized(true);
+        setLoading(false);
       } catch (error) {
         console.error('加载设置失败:', error);
         message.error('加载设置失败');
         setInitialized(true);
+        setLoading(false);
       }
     };
     
@@ -50,27 +62,38 @@ const Settings: React.FC = () => {
       setLoading(true);
       const values = await form.validateFields();
       
-      // 保存API设置
-      localStorage.setItem('openaiApiKey', values.openaiApiKey || '');
-      localStorage.setItem('anthropicApiKey', values.anthropicApiKey || '');
-      localStorage.setItem('autoSave', values.autoSave ? 'true' : 'false');
+      // 安全保存API密钥
+      if (values.openaiApiKey !== openaiApiKey) {
+        await saveApiKey('openai', values.openaiApiKey);
+        setOpenaiApiKey(values.openaiApiKey);
+      }
       
-      // 处理主题切换（如果与当前状态不同）
+      if (values.anthropicApiKey !== anthropicApiKey) {
+        await saveApiKey('anthropic', values.anthropicApiKey);
+        setAnthropicApiKey(values.anthropicApiKey);
+      }
+      
+      // 保存其他设置
+      await saveAppData('settings', {
+        autoSave: values.autoSave
+      });
+      
+      // 处理主题切换
       if (values.darkMode !== isDarkMode) {
         toggleTheme();
       }
       
       message.success('设置已保存');
-      setLoading(false);
     } catch (error) {
       console.error('保存设置失败:', error);
       message.error('保存设置失败');
+    } finally {
       setLoading(false);
     }
   };
 
   if (!initialized) {
-    return <div>加载中...</div>;
+    return <div className={styles.loading}>加载中...</div>;
   }
 
   return (

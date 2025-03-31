@@ -1,44 +1,29 @@
 import React from 'react';
-import { Card, Descriptions, Space, Image, Tag, Statistic } from 'antd';
-import { VideoCameraOutlined, FieldTimeOutlined, DotChartOutlined, FullscreenOutlined } from '@ant-design/icons';
-import { VideoMetadata } from '@/services/videoService';
-import { formatDuration, formatFileSize } from '@/utils/format';
+import { Card, Statistic, Row, Col } from 'antd';
+import { VideoCameraOutlined, ClockCircleOutlined, FileOutlined } from '@ant-design/icons';
 import styles from './VideoInfo.module.less';
 
 interface VideoInfoProps {
-  videoPath: string;
-  metadata: VideoMetadata;
-  thumbnailUrl?: string;
-  keyFrames?: string[];
+  name: string;
+  duration: number;
+  path: string;
+  metadata?: {
+    width?: number;
+    height?: number;
+    fps?: number;
+    codec?: string;
+  };
 }
 
 /**
  * 视频信息展示组件
  */
 const VideoInfo: React.FC<VideoInfoProps> = ({ 
-  videoPath, 
-  metadata, 
-  thumbnailUrl, 
-  keyFrames = [] 
+  name, 
+  duration, 
+  path,
+  metadata 
 }) => {
-  const filename = videoPath.split(/[\/\\]/).pop() || '未知文件';
-  
-  return (
-    <div className={styles.videoInfo}>
-      <Card 
-        title={<Space><VideoCameraOutlined /> 视频信息</Space>}
-        className={styles.card}
-      >
-        <div className={styles.content}>
-          {thumbnailUrl && (
-            <div className={styles.thumbnail}>
-              <Image 
-                src={thumbnailUrl} 
-                alt="视频缩略图"
-                width={240}
-                height={135}
-                style={{ objectFit: 'cover' }}
-const VideoInfo: React.FC<VideoInfoProps> = ({ name, duration, path }) => {
   // 格式化时间为分:秒
   const formatDuration = (seconds?: number): string => {
     if (!seconds) return '未知';
@@ -83,6 +68,40 @@ const VideoInfo: React.FC<VideoInfoProps> = ({ name, duration, path }) => {
             prefix={<VideoCameraOutlined />}
           />
         </Col>
+        
+        {metadata && (
+          <>
+            {metadata.width && metadata.height && (
+              <Col span={8}>
+                <Statistic 
+                  title="分辨率"
+                  value={`${metadata.width} x ${metadata.height}`}
+                  valueStyle={{ fontSize: '16px' }}
+                />
+              </Col>
+            )}
+            
+            {metadata.fps && (
+              <Col span={8}>
+                <Statistic 
+                  title="帧率"
+                  value={`${metadata.fps.toFixed(2)} FPS`}
+                  valueStyle={{ fontSize: '16px' }}
+                />
+              </Col>
+            )}
+            
+            {metadata.codec && (
+              <Col span={8}>
+                <Statistic 
+                  title="编码"
+                  value={metadata.codec}
+                  valueStyle={{ fontSize: '16px' }}
+                />
+              </Col>
+            )}
+          </>
+        )}
       </Row>
     </Card>
   );

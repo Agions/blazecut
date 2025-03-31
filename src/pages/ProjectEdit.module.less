@@ -1,6 +1,6 @@
 .container {
-  padding: 20px;
-  max-width: 800px;
+  padding: 24px;
+  max-width: 900px;
   margin: 0 auto;
 }
 
@@ -11,16 +11,56 @@
   
   h1 {
     margin: 0 0 0 16px;
-    font-size: 20px;
+    font-size: 24px;
+    font-weight: 600;
   }
 }
 
 .card {
   margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  
+  :global(.dark-theme) & {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  :global(.ant-steps) {
+    padding: 0 30px;
+  }
+  
+  :global(.ant-steps-item-title) {
+    font-size: 16px;
+    font-weight: 500;
+  }
+  
+  :global(.ant-card-body) {
+    padding: 30px 20px;
+  }
 }
 
 .stepsContent {
+  margin-top: 36px;
+  padding: 30px;
+  min-height: 400px;
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  
+  :global(.dark-theme) & {
+    background-color: #262626;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+    border: 1px solid #434343;
+  }
+}
+
+.formContainer {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.formButtons {
   margin-top: 24px;
-  padding: 20px 0;
-  min-height: 320px;
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
 } 
