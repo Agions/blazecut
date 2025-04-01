@@ -8,14 +8,17 @@ import {
   ExportOutlined,
   PlusOutlined,
   RobotOutlined,
-  LoadingOutlined
+  LoadingOutlined,
+  ScissorOutlined
 } from '@ant-design/icons';
 import { v4 as uuidv4 } from 'uuid';
 import { useStore } from '@/store';
 import VideoInfo from '@/components/VideoInfo';
 import ScriptEditor from '@/components/ScriptEditor';
-import { exportScriptToFile, saveProjectToFile } from '@/services/tauriService';
+import VideoEditor from '@/components/VideoEditor';
+import { exportScriptToFile, saveProjectToFile, getApiKey } from '@/services/tauriService';
 import { generateScript, polishScript } from '@/services/ai';
+import { generateScriptWithModel, parseGeneratedScript } from '@/services/aiService';
 import styles from './ProjectDetail.module.less';
 
 const { Title, Text } = Typography;
@@ -25,12 +28,13 @@ const { Option } = Select;
 const ProjectDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { projects, updateProject, deleteProject } = useStore();
+  const { projects, updateProject, deleteProject, selectedAIModel, aiModelsSettings } = useStore();
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   const [project, setProject] = useState<any>(null);
   const [activeScript, setActiveScript] = useState<any>(null);
   const [scriptStyle, setScriptStyle] = useState<string>('简洁专业');
+  const [activeTab, setActiveTab] = useState<string>('scripts');
 
   useEffect(() => {
     if (!id) return;
@@ -101,27 +105,59 @@ const ProjectDetail: React.FC = () => {
     try {
       setAiLoading(true);
       
-      // 使用AI服务生成脚本
-      const generatedScript = await generateScript(project.analysis, scriptStyle);
+      // 检查当前选中的模型配置
+      const modelSettings = aiModelsSettings[selectedAIModel];
+      if (!modelSettings?.enabled) {
+        message.warning(`${selectedAIModel}模型未启用，请在设置中启用该模型`);
+        setAiLoading(false);
+        return;
+      }
+      
+      // 获取API密钥
+      const apiKey = await getApiKey(selectedAIModel);
+      if (!apiKey) {
+        message.warning(`缺少${selectedAIModel}的API密钥，请在设置中配置`);
+        setAiLoading(false);
+        return;
+      }
+      
+      message.loading(`正在使用${selectedAIModel}生成脚本...`, 0);
+      
+      // 调用选定的大模型生成脚本
+      const scriptText = await generateScriptWithModel(
+        selectedAIModel,
+        apiKey,
+        project.analysis,
+        { style: scriptStyle }
+      );
+      
+      // 解析生成的脚本内容
+      const generatedScript = parseGeneratedScript(scriptText, project.id);
+      
+      // 添加模型信息
+      const scriptWithModelInfo = {
+        ...generatedScript,
+        modelUsed: selectedAIModel
+      };
       
       // 更新项目
       const updatedProject = {
         ...project,
-        scripts: [...(project.scripts || []), generatedScript],
+        scripts: [...(project.scripts || []), scriptWithModelInfo],
         updatedAt: new Date().toISOString()
       };
       
       setProject(updatedProject);
-      setActiveScript(generatedScript);
+      setActiveScript(scriptWithModelInfo);
       updateProject(updatedProject);
       
       // 保存到文件
       await saveProjectToFile(updatedProject);
       
-      message.success('脚本生成成功');
+      message.success(`使用${selectedAIModel}生成脚本成功`);
     } catch (error) {
       console.error('生成脚本失败:', error);
-      message.error('生成脚本失败: ' + (error as Error).message);
+      message.error('生成脚本失败: ' + (error instanceof Error ? error.message : '未知错误'));
     } finally {
       setAiLoading(false);
     }
@@ -318,82 +354,138 @@ const ProjectDetail: React.FC = () => {
         duration={project.analysis?.duration || 0}
       />
       
-      <div className={styles.scriptSection}>
-        <div className={styles.scriptHeader}>
-          <Title level={4}>脚本编辑</Title>
-          <Space>
-            <Form.Item label="脚本风格" style={{ marginBottom: 0 }}>
-              <Select 
-                value={scriptStyle}
-                onChange={value => setScriptStyle(value)}
-                style={{ width: 120 }}
-              >
-                <Option value="简洁专业">简洁专业</Option>
-                <Option value="生动活泼">生动活泼</Option>
-                <Option value="幽默风趣">幽默风趣</Option>
-                <Option value="严肃正式">严肃正式</Option>
-                <Option value="通俗易懂">通俗易懂</Option>
-              </Select>
-            </Form.Item>
-            
-            <Button 
-              type="primary" 
-              icon={aiLoading ? <LoadingOutlined /> : <RobotOutlined />}
-              onClick={handleGenerateScript}
-              loading={aiLoading}
-              disabled={!project.analysis || aiLoading}
-            >
-              AI生成脚本
-            </Button>
-            
-            <Button 
-              icon={aiLoading ? <LoadingOutlined /> : <RobotOutlined />}
-              onClick={handlePolishScript}
-              loading={aiLoading}
-              disabled={!activeScript || !activeScript.content || activeScript.content.length === 0 || aiLoading}
-            >
-              优化脚本
-            </Button>
-            
-            <Button 
-              icon={<PlusOutlined />}
-              onClick={handleCreateScript}
-            >
-              创建空白脚本
-            </Button>
-          </Space>
-        </div>
-        
-        {project.scripts && project.scripts.length > 0 ? (
-          <>
-            <Tabs 
-              activeKey={activeScript?.id} 
-              onChange={key => {
-                const script = project.scripts.find((s: any) => s.id === key);
-                if (script) setActiveScript(script);
-              }}
-            >
-              {project.scripts.map((script: any) => (
-                <TabPane 
-                  key={script.id} 
-                  tab={`脚本 ${new Date(script.createdAt).toLocaleDateString()}`}
-                >
-                  <ScriptEditor 
-                    segments={script.content || []}
-                    onSegmentsChange={handleScriptChange}
-                  />
-                </TabPane>
-              ))}
-            </Tabs>
-          </>
-        ) : (
-          <Card>
-            <div className={styles.emptyScript}>
-              <Text type="secondary">暂无脚本，点击"AI生成脚本"或"创建空白脚本"按钮添加</Text>
+      <Card className={styles.functionCard}>
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab}
+          size="large"
+        >
+          <TabPane 
+            tab={
+              <span>
+                <RobotOutlined />
+                脚本生成
+              </span>
+            } 
+            key="scripts"
+          >
+            <div className={styles.scriptSection}>
+              <div className={styles.scriptHeader}>
+                <Title level={4}>脚本编辑</Title>
+                <Space>
+                  <Form.Item label="脚本风格" style={{ marginBottom: 0 }}>
+                    <Select 
+                      value={scriptStyle}
+                      onChange={value => setScriptStyle(value)}
+                      style={{ width: 120 }}
+                    >
+                      <Option value="简洁专业">简洁专业</Option>
+                      <Option value="生动活泼">生动活泼</Option>
+                      <Option value="幽默风趣">幽默风趣</Option>
+                      <Option value="严肃正式">严肃正式</Option>
+                      <Option value="通俗易懂">通俗易懂</Option>
+                    </Select>
+                  </Form.Item>
+                  
+                  <Button 
+                    type="primary" 
+                    icon={aiLoading ? <LoadingOutlined /> : <RobotOutlined />}
+                    onClick={handleGenerateScript}
+                    loading={aiLoading}
+                    disabled={!project.analysis || aiLoading}
+                  >
+                    AI生成脚本
+                  </Button>
+                  
+                  <Button 
+                    icon={aiLoading ? <LoadingOutlined /> : <RobotOutlined />}
+                    onClick={handlePolishScript}
+                    loading={aiLoading}
+                    disabled={!activeScript || !activeScript.content || activeScript.content.length === 0 || aiLoading}
+                  >
+                    优化脚本
+                  </Button>
+                  
+                  <Button 
+                    icon={<PlusOutlined />}
+                    onClick={handleCreateScript}
+                  >
+                    创建空白脚本
+                  </Button>
+                </Space>
+              </div>
+              
+              {project.scripts && project.scripts.length > 0 ? (
+                <>
+                  <Tabs 
+                    activeKey={activeScript?.id} 
+                    onChange={key => {
+                      const script = project.scripts.find((s: any) => s.id === key);
+                      if (script) setActiveScript(script);
+                    }}
+                  >
+                    {project.scripts.map((script: any) => (
+                      <TabPane 
+                        key={script.id} 
+                        tab={`脚本 ${new Date(script.createdAt).toLocaleDateString()}`}
+                      >
+                        <ScriptEditor 
+                          segments={script.content || []}
+                          onSegmentsChange={handleScriptChange}
+                        />
+                      </TabPane>
+                    ))}
+                  </Tabs>
+                </>
+              ) : (
+                <Card>
+                  <div className={styles.emptyScript}>
+                    <Text type="secondary">暂无脚本，点击"AI生成脚本"或"创建空白脚本"按钮添加</Text>
+                  </div>
+                </Card>
+              )}
             </div>
-          </Card>
-        )}
-      </div>
+          </TabPane>
+          
+          <TabPane
+            tab={
+              <span>
+                <ScissorOutlined />
+                视频混剪
+              </span>
+            }
+            key="videoEdit"
+          >
+            {activeScript && activeScript.content && activeScript.content.length > 0 ? (
+              <VideoEditor
+                videoPath={project.videoUrl}
+                segments={activeScript.content}
+                onEditComplete={(outputPath) => {
+                  message.success(`视频混剪完成，已保存至: ${outputPath}`);
+                }}
+              />
+            ) : (
+              <Card>
+                <div className={styles.emptyEditor}>
+                  <Title level={4}>请先生成或编辑脚本</Title>
+                  <Text type="secondary">
+                    视频混剪功能需要基于已有脚本进行。请先在"脚本生成"选项卡中创建或生成脚本，
+                    然后再来使用视频混剪功能。
+                  </Text>
+                  <Button 
+                    type="primary" 
+                    onClick={() => setActiveTab('scripts')}
+                    icon={<RobotOutlined />}
+                    style={{ marginTop: 16 }}
+                  >
+                    去生成脚本
+                  </Button>
+                </div>
+              </Card>
+            )}
+          </TabPane>
+        </Tabs>
+      </Card>
     </div>
   );
 };

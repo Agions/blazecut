@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
-import { Card, Button, Radio, Form, Input, Select, message, Typography, Alert, Spin } from 'antd';
-import { FileTextOutlined, RobotOutlined } from '@ant-design/icons';
+import { Card, Button, Radio, Form, Input, Select, message, Typography, Alert, Spin, Space, Tooltip } from 'antd';
+import { FileTextOutlined, RobotOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { scriptApi } from '@/services/api';
-import type { Script, VideoAnalysis } from '@/types';
+import { v4 as uuidv4 } from 'uuid';
+import { aiService } from '@/services/aiService';
+import { useStore } from '@/store';
+import type { Script, VideoAnalysis, AIModelType, AIModel } from '@/types';
+import { AI_MODEL_INFO } from '@/types';
 import styles from './ScriptGenerator.module.less';
 
 const { Title, Paragraph } = Typography;
@@ -24,17 +28,46 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [form] = Form.useForm();
   const [generationMethod, setGenerationMethod] = useState<'auto' | 'guided'>('auto');
+  const { aiModelsSettings, selectedAIModel } = useStore();
+  const [selectedModel, setSelectedModel] = useState<AIModelType>(selectedAIModel);
 
   const handleGenerate = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // 在实际项目中，应当将表单值传递给后端
-      const formValues = form.getFieldsValue();
-      console.log('Form values:', formValues);
+      // 获取所选AI模型配置
+      const modelSettings = aiModelsSettings[selectedModel];
+      if (!modelSettings?.enabled || !modelSettings?.apiKey) {
+        throw new Error(`${AI_MODEL_INFO[selectedModel].name}模型尚未启用或API密钥未配置`);
+      }
 
-      const script = await scriptApi.generateScript(projectId);
+      // 获取表单值，用于引导生成
+      const formValues = generationMethod === 'guided' ? form.getFieldsValue() : {};
+      
+      // 调用AI服务生成脚本内容
+      const scriptContent = await aiService.generateScript(
+        selectedModel,
+        modelSettings.apiKey as string,
+        analysis,
+        formValues
+      );
+      
+      // 解析脚本内容为结构化数据
+      const scriptSegments = aiService.parseScriptContent(scriptContent);
+      
+      // 创建脚本对象
+      const script: Script = {
+        id: uuidv4(),
+        videoId: projectId,
+        content: scriptSegments.map(segment => ({
+          ...segment,
+          id: uuidv4()
+        })),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        modelUsed: AI_MODEL_INFO[selectedModel].name
+      };
       
       message.success('脚本生成成功');
       onScriptGenerated(script);
@@ -43,6 +76,17 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
       message.error('脚本生成失败，请稍后重试');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 处理AI模型变更
+  const handleModelChange = (value: AIModelType) => {
+    setSelectedModel(value);
+    
+    // 检查是否有API密钥
+    const modelSettings = aiModelsSettings[value];
+    if (!modelSettings?.enabled) {
+      message.warning(`您尚未配置${AI_MODEL_INFO[value].name}的API密钥，请前往"设置"页面进行配置`);
     }
   };
 
@@ -62,6 +106,42 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
           className={styles.alert}
         />
       )}
+
+      <div className={styles.modelSelection}>
+        <Form.Item
+          label={
+            <span>
+              AI 模型选择
+              <Tooltip title="选择用于生成脚本的国产大模型">
+                <InfoCircleOutlined style={{ marginLeft: 8 }} />
+              </Tooltip>
+            </span>
+          }
+        >
+          <Select 
+            value={selectedModel}
+            onChange={handleModelChange}
+            style={{ width: '100%' }}
+          >
+            {Object.entries(AI_MODEL_INFO).map(([key, model]) => (
+              <Option 
+                key={key} 
+                value={key}
+                disabled={!aiModelsSettings[key as AIModelType]?.enabled}
+              >
+                <Space>
+                  <RobotOutlined />
+                  <span>{model.name}</span>
+                  <span style={{ color: '#999' }}>({model.provider})</span>
+                  {!aiModelsSettings[key as AIModelType]?.enabled && (
+                    <span style={{ color: '#f5222d' }}>未配置</span>
+                  )}
+                </Space>
+              </Option>
+            ))}
+          </Select>
+        </Form.Item>
+      </div>
 
       <div className={styles.generationMethod}>
         <Radio.Group
@@ -145,7 +225,7 @@ const ScriptGenerator: React.FC<ScriptGeneratorProps> = ({
       {loading && (
         <div className={styles.spinner}>
           <Spin indicator={<RobotOutlined spin className={styles.loadingIcon} />} />
-          <span className={styles.loadingText}>AI 正在努力创作中...</span>
+          <span className={styles.loadingText}>AI 正在使用{AI_MODEL_INFO[selectedModel].name}创作中...</span>
         </div>
       )}
     </Card>

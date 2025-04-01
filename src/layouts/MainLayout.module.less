@@ -4,140 +4,275 @@
 
 .header {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  padding: 0 24px;
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--card-bg-color);
-  box-shadow: var(--box-shadow);
+  padding: 0 24px;
   height: 64px;
+  background-color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  z-index: 1000;
+  transition: all 0.3s;
   
-  :global(.dark-theme) & {
-    background: var(--card-bg-color);
+  :global(.ant-layout-header) {
+    padding: 0;
   }
 }
 
-.headerLeft {
+.headerLeft, .headerRight {
   display: flex;
   align-items: center;
-  gap: 16px;
-}
-
-.menuButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.logo {
-  font-size: 20px;
-  font-weight: bold;
-  color: var(--primary-color);
-  cursor: pointer;
-  transition: color 0.3s;
-  
-  &:hover {
-    color: var(--primary-color-hover);
-  }
 }
 
 .headerRight {
+  gap: 16px;
+}
+
+.logo {
+  font-size: 24px;
+  font-weight: bold;
+  color: #1890ff;
+  margin-right: 24px;
+  cursor: pointer;
+  background: linear-gradient(90deg, #1890ff, #722ed1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
   display: flex;
   align-items: center;
-  gap: 8px;
+  user-select: none;
+  
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #1890ff, #722ed1);
+    border-radius: 6px;
+    margin-right: 8px;
+    transform: rotate(45deg);
+  }
+}
+
+.menuButton {
+  margin-right: 16px;
+  font-size: 18px;
 }
 
 .sider {
-  position: fixed !important;
+  background-color: #fff;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.03);
+  position: fixed;
+  height: 100vh;
   left: 0;
-  height: calc(100vh - 64px) !important;
   top: 64px;
-  background: var(--card-bg-color) !important;
-  border-right: 1px solid var(--border-color);
-  z-index: 999;
+  z-index: 100;
   transition: all 0.3s;
-  
-  :global(.dark-theme) & {
-    background: var(--card-bg-color) !important;
-    border-right-color: var(--border-color);
-  }
+  overflow: auto;
   
   :global(.ant-layout-sider-children) {
     display: flex;
     flex-direction: column;
+    height: calc(100vh - 64px);
   }
   
-  &::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.12);
-    border-radius: 3px;
+  :global(.ant-menu-item) {
+    display: flex;
+    align-items: center;
+    transition: all 0.3s;
     
-    :global(.dark-theme) & {
-      background: rgba(255, 255, 255, 0.12);
+    &:hover {
+      background-color: rgba(24, 144, 255, 0.05);
+    }
+    
+    :global(.anticon) {
+      font-size: 18px;
+    }
+  }
+  
+  :global(.ant-menu-item-selected) {
+    background-color: #e6f7ff;
+    border-right: 3px solid #1890ff;
+    font-weight: 500;
+    
+    &::after {
+      display: none;
     }
   }
 }
 
 .content {
-  margin-top: 64px;
-  min-height: calc(100vh - 64px);
-  background: var(--bg-color);
   transition: all 0.3s;
-  
-  :global(.dark-theme) & {
-    background: var(--bg-color);
-  }
+  background-color: #f0f2f5;
+  min-height: 100vh;
+  padding-top: 64px;
 }
 
 .contentInner {
   padding: 24px;
-  min-height: 100%;
+  min-height: calc(100vh - 64px);
+  background-color: #f0f2f5;
+}
+
+// 暗色模式
+:global(.dark) {
+  .header {
+    background-color: #141414;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  }
+  
+  .sider {
+    background-color: #141414;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+    
+    :global(.ant-menu-item) {
+      &:hover {
+        background-color: rgba(255, 255, 255, 0.08);
+      }
+    }
+    
+    :global(.ant-menu-item-selected) {
+      background-color: rgba(255, 255, 255, 0.08);
+      border-right: 3px solid #1890ff;
+    }
+  }
+  
+  .content, .contentInner {
+    background-color: #000;
+  }
 }
 
 // 响应式设计
-@media screen and (max-width: 768px) {
+@media (max-width: 768px) {
   .header {
     padding: 0 16px;
+  }
+  
+  .logo {
+    font-size: 20px;
   }
   
   .contentInner {
     padding: 16px;
   }
-  
-  .logo {
-    font-size: 18px;
-  }
-  
-  .headerRight {
-    gap: 4px;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+:global(.dark) {
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
   }
 }
 
-// 动画
-.menuItem {
-  position: relative;
-  overflow: hidden;
+.avatarContainer {
+  cursor: pointer;
+  transition: all 0.3s;
   
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 0;
-    height: 2px;
-    background-color: var(--primary-color);
-    transition: width 0.3s;
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.avatar {
+  background: linear-gradient(135deg, #1890ff, #722ed1);
+  color: #fff;
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: all 0.3s;
+  
+  &:hover {
+    transform: scale(1.1);
+    background-color: rgba(24, 144, 255, 0.05);
+  }
+}
+
+.mainMenu {
+  height: 100%;
+  border-right: 0;
+  background-color: transparent;
+}
+
+.drawerHeader {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.mobileDrawer {
+  :global(.ant-drawer-body) {
+    padding: 0;
+  }
+}
+
+.footer {
+  margin-top: 48px;
+  padding: 24px;
+  text-align: center;
+  background: transparent;
+}
+
+.footerContent {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.footerLinks {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 16px;
+  
+  a {
+    color: rgba(0, 0, 0, 0.45);
+    transition: all 0.3s;
+    
+    &:hover {
+      color: #1890ff;
+    }
+  }
+}
+
+.copyright {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+}
+
+// 暗色模式扩展
+:global(.dark) {
+  .footerLinks a {
+    color: rgba(255, 255, 255, 0.45);
+    
+    &:hover {
+      color: #1890ff;
+    }
   }
   
-  &:hover::after {
-    width: 100%;
+  .copyright {
+    color: rgba(255, 255, 255, 0.45);
+  }
+  
+  .iconButton {
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+    }
   }
 } 

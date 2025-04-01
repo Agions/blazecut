@@ -3,6 +3,7 @@ import { open, save } from '@tauri-apps/api/dialog';
 import { readTextFile, writeTextFile, BaseDirectory, createDir, exists } from '@tauri-apps/api/fs';
 import { message } from 'antd';
 import { appConfigDir } from '@tauri-apps/api/path';
+import { open as openExternal } from '@tauri-apps/api/shell';
 
 // 确保应用数据目录
 export const ensureAppDataDir = async (): Promise<void> => {
@@ -77,13 +78,36 @@ export const saveProjectToFile = async (project: any): Promise<void> => {
     // 准备项目数据
     let projectData: string;
     try {
-      projectData = JSON.stringify(project, null, 2);
+      // 移除可能导致循环引用的字段
+      const cleanProject = { ...project };
+      if (cleanProject.aiModel && cleanProject.aiModel.apiKey) {
+        // 创建新对象避免修改原始对象
+        cleanProject.aiModel = { 
+          ...cleanProject.aiModel,
+          apiKey: undefined // 不保存API密钥到项目文件中
+        };
+      }
+      
+      projectData = JSON.stringify(cleanProject, null, 2);
       if (!projectData) {
         throw new Error('项目数据序列化为空');
       }
     } catch (err) {
       console.error('序列化项目数据失败:', err);
       throw new Error('无法序列化项目数据');
+    }
+    
+    // 使用Rust函数直接写入文件，提供更好的错误处理
+    try {
+      await invoke('save_project_file', {
+        projectId: project.id,
+        content: projectData
+      });
+      console.log('文件写入成功 (通过Rust函数)');
+      return;
+    } catch (rustErr: any) {
+      console.warn('通过Rust保存文件失败，尝试使用JS API保存:', rustErr);
+      // 继续使用JS API作为备选方案
     }
     
     // 检查文件是否已存在
@@ -105,7 +129,18 @@ export const saveProjectToFile = async (project: any): Promise<void> => {
       console.log('文件写入完成');
     } catch (writeErr: any) {
       console.error('文件写入失败:', writeErr);
-      throw new Error(`文件写入失败: ${writeErr?.message || '未知错误'}`);
+      
+      // 尝试备用方法保存
+      try {
+        const configDir = await getConfigDir();
+        const backupPath = `${configDir}${project.id}.json`;
+        await writeTextFile(backupPath, projectData);
+        console.log('使用备用路径保存成功:', backupPath);
+        return;
+      } catch (backupErr) {
+        console.error('备用保存也失败:', backupErr);
+        throw new Error(`文件写入失败: ${writeErr?.message || '未知错误'}`);
+      }
     }
     
     // 验证文件是否写入成功
@@ -120,23 +155,13 @@ export const saveProjectToFile = async (project: any): Promise<void> => {
       throw new Error(`无法验证文件是否保存成功: ${verifyErr?.message || '未知错误'}`);
     }
     
-    // 尝试读取文件验证内容
-    try {
-      await readTextFile(projectPath, { dir: BaseDirectory.AppData });
-      console.log('验证文件可读: 成功');
-    } catch (readErr) {
-      console.error('验证文件可读时出错:', readErr);
-      // 我们不抛出这个错误，因为文件已经写入成功，仅记录日志
-      console.warn('警告: 文件已保存但无法读取进行验证');
-    }
-    
     console.log('项目文件保存成功:', projectPath);
     return;
   } catch (error) {
     console.error('保存项目文件失败:', error);
     // 传递更明确的错误信息
     const errorMessage = error instanceof Error 
-      ? `保存失败: ${error.message}` 
+      ? error.message
       : '未知错误';
     message.error(`保存项目文件失败: ${errorMessage}`);
     throw error;
@@ -378,5 +403,44 @@ export const saveAppData = async <T>(key: string, data: T): Promise<boolean> => 
     console.error(`保存应用数据(${key})失败:`, error);
     message.error(`保存数据失败: ${error}`);
     return false;
+  }
+};
+
+/**
+ * 打开外部URL
+ * @param url 要打开的URL
+ * @returns 是否成功打开
+ */
+export const openExternalUrl = async (url: string): Promise<boolean> => {
+  try {
+    // 确保URL有效
+    let validUrl = url.trim();
+    
+    // 添加https前缀如果缺少协议
+    if (!validUrl.startsWith('http://') && !validUrl.startsWith('https://')) {
+      validUrl = 'https://' + validUrl;
+    }
+    
+    console.log(`正在打开外部链接: ${validUrl}`);
+    await openExternal(validUrl);
+    return true;
+  } catch (error) {
+    console.error('打开外部链接失败:', error);
+    
+    // 降级处理：尝试使用window.open
+    try {
+      let validUrl = url.trim();
+      if (!validUrl.startsWith('http://') && !validUrl.startsWith('https://')) {
+        validUrl = 'https://' + validUrl;
+      }
+      
+      window.open(validUrl, '_blank', 'noopener,noreferrer');
+      console.log('通过window.open打开链接');
+      return true;
+    } catch (windowError) {
+      console.error('无法打开链接:', windowError);
+      message.error('无法打开链接，请手动复制并访问: ' + url);
+      return false;
+    }
   }
 }; 

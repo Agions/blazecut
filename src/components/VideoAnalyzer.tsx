@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Card, Button, Progress, message, Alert, Typography, Spin } from 'antd';
 import { VideoCameraOutlined } from '@ant-design/icons';
-import { analysisApi } from '@/services/api';
+import { invoke } from '@tauri-apps/api/tauri';
+import { v4 as uuidv4 } from 'uuid';
 import VideoUploader from './VideoUploader';
-import type { VideoAnalysis } from '@/types';
+import type { VideoAnalysis, KeyMoment, Emotion } from '@/types';
 import styles from './VideoAnalyzer.module.less';
 
 const { Title, Paragraph } = Typography;
@@ -34,21 +35,78 @@ const VideoAnalyzer: React.FC<VideoAnalyzerProps> = ({
       setLoading(true);
       setError(null);
       
-      // 模拟进度（实际项目中应从后端获取进度）
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => {
-          const newProgress = prev + 5;
-          if (newProgress >= 99) {
-            clearInterval(progressInterval);
-            return 99;
-          }
-          return newProgress;
-        });
-      }, 500);
-
-      const analysis = await analysisApi.analyzeVideo(selectedVideoUrl);
+      // 初始进度
+      setProgress(10);
       
-      clearInterval(progressInterval);
+      // 调用Tauri后端分析视频
+      const videoMetadata = await invoke<any>('analyze_video', { 
+        path: selectedVideoUrl 
+      }).catch(err => {
+        console.error('视频分析失败:', err);
+        throw new Error(`视频分析失败: ${err}`);
+      });
+      
+      setProgress(40);
+      
+      // 提取关键帧
+      const keyFrameCount = Math.min(5, Math.ceil(videoMetadata.duration / 60));
+      const keyFrames = await invoke<string[]>('extract_key_frames', {
+        path: selectedVideoUrl,
+        count: keyFrameCount
+      }).catch(err => {
+        console.error('提取关键帧失败:', err);
+        return [] as string[];
+      });
+      
+      setProgress(70);
+      
+      // 生成缩略图
+      const thumbnail = await invoke<string>('generate_thumbnail', {
+        path: selectedVideoUrl
+      }).catch(err => {
+        console.error('生成缩略图失败:', err);
+        return '';
+      });
+      
+      // 模拟关键时刻和情感分析
+      // 在实际项目中，这部分应由AI模型完成
+      const keyMoments: KeyMoment[] = [];
+      const emotions: Emotion[] = [];
+      
+      // 生成均匀分布的关键时刻
+      const numKeyMoments = Math.min(8, Math.ceil(videoMetadata.duration / 30));
+      const interval = videoMetadata.duration / (numKeyMoments + 1);
+      
+      for (let i = 1; i <= numKeyMoments; i++) {
+        const timestamp = Math.round(interval * i);
+        keyMoments.push({
+          timestamp,
+          description: `关键时刻 ${i}`,
+          importance: Math.random() * 5 + 5 // 5-10的重要性
+        });
+        
+        // 同时添加情感标记
+        if (i % 2 === 0) {
+          emotions.push({
+            timestamp,
+            type: i % 4 === 0 ? '兴奋' : '平静',
+            intensity: Math.random() * 0.5 + 0.5 // 0.5-1.0的强度
+          });
+        }
+      }
+      
+      setProgress(90);
+      
+      // 构建分析结果
+      const analysis: VideoAnalysis = {
+        id: uuidv4(),
+        title: videoMetadata.title || `项目_${projectId}`,
+        duration: videoMetadata.duration,
+        keyMoments,
+        emotions,
+        summary: `视频时长: ${Math.round(videoMetadata.duration)}秒，分辨率: ${videoMetadata.width}x${videoMetadata.height}，帧率: ${videoMetadata.fps}帧/秒。`
+      };
+      
       setProgress(100);
       
       message.success('视频分析完成');

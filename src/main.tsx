@@ -1,8 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import { ThemeProvider } from './context/ThemeContext';
-import './styles/index.less';
+import { ThemeProvider } from '@/context/ThemeContext';
+import 'antd/dist/reset.css';
+import './index.css';
+import './assets/theme.less';
 
 // 防止控制台出现错误消息
 window.addEventListener('error', (e) => {

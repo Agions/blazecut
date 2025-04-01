@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Button, Typography, Space, Spin, message, Divider, Modal } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, DeleteOutlined, ExportOutlined } from '@ant-design/icons';
+import { Card, Button, Typography, Space, Spin, message, Divider, Modal, Tag } from 'antd';
+import { ArrowLeftOutlined, SaveOutlined, DeleteOutlined, ExportOutlined, RobotOutlined } from '@ant-design/icons';
 import { useStore } from '@/store';
 import ScriptEditor from '@/components/ScriptEditor';
 import { exportScriptToFile, saveProjectToFile } from '@/services/tauriService';
@@ -193,7 +193,14 @@ const ScriptDetail: React.FC = () => {
 
       <Card className={styles.infoCard}>
         <Title level={4}>{project.name} - 脚本编辑</Title>
-        <Text type="secondary">创建于 {new Date(script.createdAt).toLocaleString()}</Text>
+        <div className={styles.scriptInfo}>
+          <Text type="secondary">创建于 {new Date(script.createdAt).toLocaleString()}</Text>
+          {script.modelUsed && (
+            <Tag color="blue" icon={<RobotOutlined />} className={styles.modelTag}>
+              由 {script.modelUsed} 生成
+            </Tag>
+          )}
+        </div>
         <Divider />
         <div className={styles.stats}>
           <Space>

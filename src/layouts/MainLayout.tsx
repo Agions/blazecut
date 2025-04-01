@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Drawer, Tooltip, Badge, Avatar } from 'antd';
+import { Layout, Menu, Button, Drawer, Tooltip, Badge, Avatar, Dropdown, Space } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   HomeOutlined,
@@ -11,6 +11,8 @@ import {
   BulbFilled,
   BellOutlined,
   UserOutlined,
+  LogoutOutlined,
+  GithubOutlined,
 } from '@ant-design/icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAppStore } from '@/store/app';
@@ -18,6 +20,24 @@ import NotificationCenter from '@/components/NotificationCenter';
 import styles from './MainLayout.module.less';
 
 const { Header, Sider, Content } = Layout;
+
+// 页脚组件
+const Footer = () => (
+  <div className={styles.footer}>
+    <div className={styles.footerContent}>
+      <div className={styles.footerLinks}>
+        <a href="https://github.com/agions/blazecut" target="_blank" rel="noopener noreferrer">
+          <GithubOutlined /> GitHub
+        </a>
+        <a href="/privacy" target="_blank">隐私政策</a>
+        <a href="/terms" target="_blank">使用条款</a>
+      </div>
+      <div className={styles.copyright}>
+        BlazeCut © {new Date().getFullYear()} Created by Agions
+      </div>
+    </div>
+  </div>
+);
 
 const MainLayout: React.FC = () => {
   const navigate = useNavigate();
@@ -57,6 +77,34 @@ const MainLayout: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [mobileDrawerOpen]);
 
+  // 用户菜单选项
+  const userMenuItems = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: '个人资料',
+      onClick: () => navigate('/profile'),
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: '设置',
+      onClick: () => navigate('/settings'),
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+      onClick: () => {
+        console.log('用户登出');
+        // 登出逻辑
+      },
+    },
+  ];
+
   const menuItems = [
     {
       key: '/',
@@ -83,7 +131,7 @@ const MainLayout: React.FC = () => {
   const renderMenu = () => (
     <Menu
       mode="inline"
-      selectedKeys={[location.pathname]}
+      selectedKeys={[location.pathname === '/' ? '/' : `/${location.pathname.split('/')[1]}`]}
       defaultSelectedKeys={['/']}
       items={menuItems}
       onClick={({ key }) => {
@@ -92,16 +140,12 @@ const MainLayout: React.FC = () => {
           setMobileDrawerOpen(false);
         }
       }}
-      style={{ 
-        height: '100%', 
-        borderRight: 0,
-        backgroundColor: 'transparent'
-      }}
+      className={styles.mainMenu}
     />
   );
 
   return (
-    <Layout className={styles.layout}>
+    <Layout className={`${styles.layout} ${isDarkMode ? 'dark' : ''}`}>
       <Header className={styles.header}>
         <div className={styles.headerLeft}>
           {isMobile && (
@@ -122,25 +166,32 @@ const MainLayout: React.FC = () => {
               type="text" 
               icon={isDarkMode ? <BulbFilled /> : <BulbOutlined />} 
               onClick={toggleTheme}
+              className={styles.iconButton}
             />
           </Tooltip>
           
           {tauriSupported && (
             <Tooltip title="通知">
-              <Badge count={notifications} size="small">
+              <Badge count={notifications} size="small" offset={[-2, 2]}>
                 <Button 
                   type="text" 
                   icon={<BellOutlined />} 
                   onClick={() => setNotificationDrawerOpen(true)}
+                  className={styles.iconButton}
                 />
               </Badge>
             </Tooltip>
           )}
 
-          <Avatar
-            style={{ cursor: 'pointer' }}
-            icon={<UserOutlined />}
-          />
+          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
+            <div className={styles.avatarContainer}>
+              <Avatar
+                size="default"
+                icon={<UserOutlined />}
+                className={styles.avatar}
+              />
+            </div>
+          </Dropdown>
         </div>
       </Header>
       <Layout>
@@ -157,12 +208,18 @@ const MainLayout: React.FC = () => {
           </Sider>
         ) : (
           <Drawer
-            title="菜单"
+            title={
+              <div className={styles.drawerHeader}>
+                <div className={styles.logo}>BlazeCut</div>
+              </div>
+            }
             placement="left"
             onClose={() => setMobileDrawerOpen(false)}
             open={mobileDrawerOpen}
             bodyStyle={{ padding: 0 }}
-            width={200}
+            width={240}
+            className={styles.mobileDrawer}
+            closeIcon={null}
           >
             {renderMenu()}
           </Drawer>
@@ -177,6 +234,7 @@ const MainLayout: React.FC = () => {
             <div className={styles.contentInner}>
               <Outlet />
             </div>
+            <Footer />
           </Content>
         </Layout>
       </Layout>

@@ -7,6 +7,7 @@
 .header {
   display: flex;
   align-items: center;
+  gap: 16px;
   margin-bottom: 24px;
   
   h1 {
@@ -17,8 +18,9 @@
 }
 
 .card {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
   margin-bottom: 24px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   
   :global(.dark-theme) & {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -38,10 +40,23 @@
   }
 }
 
+.backButton {
+  padding: 0;
+}
+
+.content {
+  padding: 16px 0;
+}
+
+.steps {
+  margin-bottom: 24px;
+}
+
 .stepsContent {
-  margin-top: 36px;
+  margin-top: 16px;
+  margin-bottom: 32px;
+  min-height: 200px;
   padding: 30px;
-  min-height: 400px;
   background-color: #fff;
   border-radius: 4px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
@@ -53,14 +68,52 @@
   }
 }
 
+.stepsAction {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
 .formContainer {
   max-width: 600px;
   margin: 0 auto;
 }
 
 .formButtons {
-  margin-top: 24px;
   display: flex;
-  justify-content: flex-start;
-  gap: 12px;
+  justify-content: space-between;
+  margin-top: 32px;
+}
+
+// 模型选择样式
+.modelOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modelIcon {
+  color: #1890ff;
+  font-size: 16px;
+}
+
+.modelProvider {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  margin-left: 4px;
+}
+
+.modelDisabled {
+  font-size: 12px;
+  background-color: rgba(255, 77, 79, 0.1);
+  color: #ff4d4f;
+  padding: 1px 6px;
+  border-radius: 2px;
+  margin-left: auto;
+}
+
+:global(.dark) {
+  .modelProvider {
+    color: rgba(255, 255, 255, 0.45);
+  }
 } 

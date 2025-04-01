@@ -1,6 +1,13 @@
-import React from 'react';
-import { Card, Typography, Divider, Button, Tag } from 'antd';
-import { FilePdfOutlined, CopyOutlined, FileTextOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
+import { Card, Typography, Divider, Button, Tag, message, Tooltip, Space } from 'antd';
+import { 
+  FilePdfOutlined, 
+  CopyOutlined, 
+  FileTextOutlined, 
+  ClockCircleOutlined,
+  OrderedListOutlined,
+  CalendarOutlined
+} from '@ant-design/icons';
 import type { Script } from '@/types';
 import styles from './ScriptPreview.module.less';
 
@@ -13,6 +20,8 @@ interface ScriptPreviewProps {
 }
 
 const ScriptPreview: React.FC<ScriptPreviewProps> = ({ script, onEdit, onExport }) => {
+  const [copying, setCopying] = useState(false);
+
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = Math.floor(seconds % 60);
@@ -20,6 +29,7 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ script, onEdit, onExport 
   };
 
   const copyToClipboard = () => {
+    setCopying(true);
     const text = script.content
       .map(
         (segment) =>
@@ -31,10 +41,13 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ script, onEdit, onExport 
 
     navigator.clipboard.writeText(text).then(
       () => {
-        alert('脚本已复制到剪贴板');
+        message.success('脚本已复制到剪贴板');
+        setCopying(false);
       },
       (err) => {
         console.error('复制失败:', err);
+        message.error('复制失败，请重试');
+        setCopying(false);
       }
     );
   };
@@ -44,22 +57,46 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ script, onEdit, onExport 
     0
   );
 
+  const getSegmentTypeInfo = (type: string) => {
+    switch(type) {
+      case 'narration':
+        return { color: '#1890ff', text: '旁白', bgColor: 'rgba(24, 144, 255, 0.1)' };
+      case 'dialogue':
+        return { color: '#52c41a', text: '对话', bgColor: 'rgba(82, 196, 26, 0.1)' };
+      default:
+        return { color: '#fa8c16', text: '描述', bgColor: 'rgba(250, 140, 22, 0.1)' };
+    }
+  };
+
   return (
-    <Card className={styles.container}>
+    <Card className={styles.container} bordered={false}>
       <div className={styles.header}>
         <div>
-          <Title level={4}>脚本预览</Title>
-          <div className={styles.meta}>
-            <Tag color="blue">总时长: {Math.round(totalDuration / 60)} 分钟</Tag>
-            <Tag color="green">段落数: {script.content.length}</Tag>
-            <Tag>创建于: {new Date(script.createdAt).toLocaleString()}</Tag>
-          </div>
+          <Title level={3} className={styles.title}>脚本预览</Title>
+          <Space size="middle" className={styles.meta}>
+            <Tooltip title="总时长">
+              <Tag icon={<ClockCircleOutlined />} color="blue" className={styles.metaTag}>
+                {Math.round(totalDuration / 60)} 分钟
+              </Tag>
+            </Tooltip>
+            <Tooltip title="段落数">
+              <Tag icon={<OrderedListOutlined />} color="green" className={styles.metaTag}>
+                {script.content.length} 段
+              </Tag>
+            </Tooltip>
+            <Tooltip title="创建时间">
+              <Tag icon={<CalendarOutlined />} className={styles.metaTag}>
+                {new Date(script.createdAt).toLocaleDateString()}
+              </Tag>
+            </Tooltip>
+          </Space>
         </div>
         <div className={styles.actions}>
           <Button 
             icon={<CopyOutlined />} 
             onClick={copyToClipboard}
             className={styles.actionButton}
+            loading={copying}
           >
             复制全文
           </Button>
@@ -74,35 +111,39 @@ const ScriptPreview: React.FC<ScriptPreviewProps> = ({ script, onEdit, onExport 
             type="primary" 
             icon={<FileTextOutlined />} 
             onClick={onEdit}
+            className={`${styles.actionButton} ${styles.editButton}`}
           >
             编辑脚本
           </Button>
         </div>
       </div>
 
-      <Divider />
+      <Divider className={styles.mainDivider} />
 
       <div className={styles.scriptContent}>
-        {script.content.map((segment, index) => (
-          <div key={segment.id} className={styles.segment}>
-            <div className={styles.segmentHeader}>
-              <Text strong className={styles.timeCode}>
-                {formatTime(segment.startTime)} - {formatTime(segment.endTime)}
-              </Text>
-              <Tag color={
-                segment.type === 'narration' ? 'blue' : 
-                segment.type === 'dialogue' ? 'green' : 'orange'
-              }>
-                {segment.type === 'narration' ? '旁白' : 
-                 segment.type === 'dialogue' ? '对话' : '描述'}
-              </Tag>
+        {script.content.map((segment, index) => {
+          const typeInfo = getSegmentTypeInfo(segment.type);
+          return (
+            <div 
+              key={segment.id} 
+              className={styles.segment}
+              style={{ borderLeft: `3px solid ${typeInfo.color}` }}
+            >
+              <div className={styles.segmentHeader}>
+                <Text strong className={styles.timeCode}>
+                  {formatTime(segment.startTime)} - {formatTime(segment.endTime)}
+                </Text>
+                <Tag color={typeInfo.color} className={styles.typeTag}>
+                  {typeInfo.text}
+                </Tag>
+              </div>
+              <Paragraph className={styles.content}>
+                {segment.content}
+              </Paragraph>
+              {index < script.content.length - 1 && <Divider dashed className={styles.divider} />}
             </div>
-            <Paragraph className={styles.content}>
-              {segment.content}
-            </Paragraph>
-            {index < script.content.length - 1 && <Divider dashed className={styles.divider} />}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </Card>
   );

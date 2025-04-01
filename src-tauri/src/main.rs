@@ -1,14 +1,16 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
 
 use std::process::Command;
 use serde::{Deserialize, Serialize};
 use tauri::command;
-use std::path::{Path, PathBuf};
-use std::fs;
-use std::error::Error;
-use tauri::api::path::{app_data_dir, app_config_dir};
-use tauri::Config;
+use std::fs::{self, File};
+use std::io::Write;
+use tauri::api::path::app_data_dir;
+use tauri::Window;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct VideoMetadata {
@@ -18,6 +20,46 @@ struct VideoMetadata {
     fps: f64,
     codec: String,
     bitrate: u32,
+}
+
+// 视频剪辑片段结构
+#[derive(Deserialize, Debug)]
+struct VideoSegment {
+    start: f64,
+    end: f64,
+    type_field: Option<String>,
+    content: Option<String>,
+}
+
+// 视频剪辑参数
+#[derive(Deserialize, Debug)]
+struct CutVideoParams {
+    input_path: String,
+    output_path: String,
+    segments: Vec<VideoSegment>,
+    quality: Option<String>,
+    format: Option<String>,
+    transition: Option<String>,
+    transition_duration: Option<f64>,
+    volume: Option<f64>,
+    add_subtitles: Option<bool>,
+}
+
+// 预览片段参数
+#[derive(Deserialize, Debug)]
+struct PreviewParams {
+    input_path: String,
+    segment: VideoSegment,
+    transition: Option<String>,
+    transition_duration: Option<f64>,
+    volume: Option<f64>,
+    add_subtitles: Option<bool>,
+}
+
+// 清理临时文件参数
+#[derive(Deserialize, Debug)]
+struct CleanFileParams {
+    path: String,
 }
 
 /// 分析视频文件获取元数据
@@ -184,35 +226,415 @@ fn generate_thumbnail(path: String) -> Result<String, String> {
 /// 检查并创建应用数据目录
 #[command]
 fn check_app_data_directory() -> Result<String, String> {
-    println!("检查应用数据目录");
+    let app_data_dir = match app_data_dir(&Default::default()) {
+        Some(dir) => dir,
+        None => return Err("无法获取应用数据目录".into()),
+    };
+
+    let app_dir = app_data_dir.join("blazecut");
     
-    // 获取应用数据目录
-    let config = Config::default();
-    let app_data = app_data_dir(&config).ok_or("无法获取应用数据目录")?;
+    // 确保目录存在
+    if !app_dir.exists() {
+        match fs::create_dir_all(&app_dir) {
+            Ok(_) => (),
+            Err(e) => return Err(format!("创建目录失败: {}", e)),
+        }
+    }
+
+    Ok(app_dir.to_string_lossy().into_owned())
+}
+
+#[command]
+fn save_project_file(project_id: String, content: String) -> Result<(), String> {
+    let app_data_dir = match app_data_dir(&Default::default()) {
+        Some(dir) => dir,
+        None => return Err("无法获取应用数据目录".into()),
+    };
+
+    let app_dir = app_data_dir.join("blazecut");
     
-    // 创建应用专用目录
-    let blazecut_dir = app_data.join("blazecut");
+    // 确保目录存在
+    if !app_dir.exists() {
+        match fs::create_dir_all(&app_dir) {
+            Ok(_) => (),
+            Err(e) => return Err(format!("创建目录失败: {}", e)),
+        }
+    }
+
+    let file_path = app_dir.join(format!("{}.json", project_id));
     
-    println!("应用数据目录: {:?}", blazecut_dir);
+    // 创建文件并写入内容
+    let mut file = match File::create(&file_path) {
+        Ok(file) => file,
+        Err(e) => return Err(format!("创建文件失败: {}", e)),
+    };
+
+    match file.write_all(content.as_bytes()) {
+        Ok(_) => (),
+        Err(e) => return Err(format!("写入文件失败: {}", e)),
+    }
+
+    // 确认文件成功写入
+    if !file_path.exists() {
+        return Err("文件写入后无法确认其存在".into());
+    }
+
+    Ok(())
+}
+
+/// 剪辑视频
+#[tauri::command]
+async fn cut_video(params: CutVideoParams, window: Window) -> Result<String, String> {
+    println!("开始剪辑视频: {:?}", params);
     
-    // 检查目录是否存在
-    if !blazecut_dir.exists() {
-        println!("目录不存在，创建目录");
-        std::fs::create_dir_all(&blazecut_dir)
-            .map_err(|e| format!("创建应用数据目录失败: {}", e))?;
+    // 确保FFmpeg已安装
+    if !is_ffmpeg_installed() {
+        return Err("未安装FFmpeg，请先安装FFmpeg后再试".into());
     }
     
-    // 测试文件写入权限
-    let test_file_path = blazecut_dir.join("test_write.tmp");
-    std::fs::write(&test_file_path, "测试写入权限")
-        .map_err(|e| format!("写入权限测试失败: {}", e))?;
+    // 创建临时文件夹
+    let temp_dir = std::env::temp_dir().join("blazecut_temp");
+    fs::create_dir_all(&temp_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
     
-    // 清除测试文件
-    if test_file_path.exists() {
-        let _ = std::fs::remove_file(&test_file_path);
+    // 处理输出格式
+    let format = params.format.unwrap_or_else(|| "mp4".to_string());
+    
+    // 处理视频质量
+    let quality = params.quality.unwrap_or_else(|| "medium".to_string());
+    let quality_params = match quality.as_str() {
+        "low" => "-vf scale=1280:720 -b:v 1.5M",
+        "medium" => "-vf scale=1920:1080 -b:v 4M",
+        "high" => "-b:v 8M", // 保持原始分辨率
+        _ => "-vf scale=1920:1080 -b:v 4M", // 默认中等质量
+    };
+    
+    // 处理转场效果
+    let transition_type = params.transition.unwrap_or_else(|| "none".to_string());
+    let transition_duration = params.transition_duration.unwrap_or(1.0);
+    
+    // 处理音量
+    let volume = params.volume.unwrap_or(1.0);
+    
+    // 处理字幕
+    let add_subtitles = params.add_subtitles.unwrap_or(false);
+    
+    // 确保片段有效
+    if params.segments.is_empty() {
+        return Err("没有提供有效的片段信息".into());
     }
     
-    Ok(blazecut_dir.to_string_lossy().to_string())
+    // 为每个片段生成一个临时文件
+    let mut segment_files = Vec::new();
+    let mut subtitle_files = Vec::new();
+    
+    for (i, segment) in params.segments.iter().enumerate() {
+        // 跳过无效片段
+        if segment.end <= segment.start {
+            println!("忽略无效片段: {:?}", segment);
+            continue;
+        }
+        
+        // 计算片段时长
+        let duration = segment.end - segment.start;
+        
+        // 临时片段文件路径
+        let segment_file = temp_dir.join(format!("segment_{}.{}", i, format));
+        let segment_path = segment_file.to_string_lossy().to_string();
+        
+        // 处理视频滤镜
+        let mut video_filters = String::new();
+        
+        // 添加音量调整
+        if (volume - 1.0).abs() > 0.01 {
+            if !video_filters.is_empty() {
+                video_filters.push_str(",");
+            }
+            video_filters.push_str(&format!("volume={}", volume));
+        }
+        
+        // 添加字幕
+        if add_subtitles && segment.content.is_some() {
+            // 创建字幕文件
+            let subtitle_file = temp_dir.join(format!("subtitle_{}.srt", i));
+            let subtitle_path = subtitle_file.to_string_lossy().to_string();
+            subtitle_files.push(subtitle_path.clone());
+            
+            // 写入SRT格式字幕
+            let mut file = File::create(&subtitle_file)
+                .map_err(|e| format!("创建字幕文件失败: {}", e))?;
+            
+            writeln!(file, "1")?;
+            writeln!(file, "00:00:00,000 --> 00:{:02}:{:02},000", 
+                (duration as u32) / 60, (duration as u32) % 60)?;
+            writeln!(file, "{}", segment.content.as_ref().unwrap())?;
+            
+            // 添加字幕滤镜
+            if !video_filters.is_empty() {
+                video_filters.push_str(",");
+            }
+            video_filters.push_str(&format!("subtitles='{}'", subtitle_path));
+        }
+        
+        // 构建完整的滤镜参数
+        let filter_param = if !video_filters.is_empty() {
+            format!("-vf \"{}\"", video_filters)
+        } else {
+            String::new()
+        };
+        
+        // 构建FFmpeg命令
+        let ffmpeg_command = format!(
+            "ffmpeg -y -ss {} -i \"{}\" -t {} {} {} -c:a aac -strict experimental \"{}\"",
+            segment.start,
+            params.input_path,
+            duration,
+            quality_params,
+            filter_param,
+            segment_path
+        );
+        
+        // 发送进度更新
+        window.emit("cut_progress", i as f64 / params.segments.len() as f64 * 0.6).unwrap_or_default();
+        
+        // 执行FFmpeg命令
+        println!("执行FFmpeg命令: {}", ffmpeg_command);
+        let output = Command::new("sh")
+            .arg("-c")
+            .arg(&ffmpeg_command)
+            .output()
+            .map_err(|e| format!("执行FFmpeg命令失败: {}", e))?;
+            
+        if !output.status.success() {
+            let error = String::from_utf8_lossy(&output.stderr);
+            println!("FFmpeg错误: {}", error);
+            return Err(format!("剪辑片段失败: {}", error));
+        }
+        
+        segment_files.push(segment_path);
+    }
+    
+    // 处理转场效果
+    if transition_type != "none" && segment_files.len() > 1 {
+        // 创建转场临时文件
+        let mut transition_files = Vec::new();
+        
+        window.emit("cut_progress", 0.7).unwrap_or_default();
+        
+        for i in 0..segment_files.len() - 1 {
+            let file1 = &segment_files[i];
+            let file2 = &segment_files[i + 1];
+            let transition_file = temp_dir.join(format!("transition_{}_{}.{}", i, i+1, format));
+            let transition_path = transition_file.to_string_lossy().to_string();
+            
+            // 根据转场类型构建不同的命令
+            let transition_command = match transition_type.as_str() {
+                "fade" => format!(
+                    "ffmpeg -y -i \"{}\" -i \"{}\" -filter_complex \"[0:v]format=pix_fmts=yuva420p,fade=t=out:st={}:d={}:alpha=1[fv1];[1:v]format=pix_fmts=yuva420p,fade=t=in:st=0:d={}:alpha=1[fv2];[fv1][fv2]overlay=format=yuv420[outv]\" -map \"[outv]\" \"{}\"",
+                    file1, file2, 
+                    transition_duration, transition_duration, transition_duration,
+                    transition_path
+                ),
+                "dissolve" => format!(
+                    "ffmpeg -y -i \"{}\" -i \"{}\" -filter_complex \"[0:v][1:v]xfade=transition=fade:duration={}:offset={}[outv]\" -map \"[outv]\" \"{}\"",
+                    file1, file2, 
+                    transition_duration, 5.0, // 从第5秒开始淡出
+                    transition_path
+                ),
+                "wipe" => format!(
+                    "ffmpeg -y -i \"{}\" -i \"{}\" -filter_complex \"[0:v][1:v]xfade=transition=wiperight:duration={}:offset={}[outv]\" -map \"[outv]\" \"{}\"",
+                    file1, file2, 
+                    transition_duration, 5.0,
+                    transition_path
+                ),
+                "slide" => format!(
+                    "ffmpeg -y -i \"{}\" -i \"{}\" -filter_complex \"[0:v][1:v]xfade=transition=slideleft:duration={}:offset={}[outv]\" -map \"[outv]\" \"{}\"",
+                    file1, file2, 
+                    transition_duration, 5.0,
+                    transition_path
+                ),
+                _ => format!(
+                    "ffmpeg -y -i \"{}\" -i \"{}\" -filter_complex \"[0:v][1:v]concat=n=2:v=1:a=0[outv]\" -map \"[outv]\" \"{}\"",
+                    file1, file2, 
+                    transition_path
+                ),
+            };
+            
+            // 执行转场命令
+            println!("执行转场命令: {}", transition_command);
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(&transition_command)
+                .output()
+                .map_err(|e| format!("执行FFmpeg转场命令失败: {}", e))?;
+                
+            if !output.status.success() {
+                let error = String::from_utf8_lossy(&output.stderr);
+                println!("FFmpeg错误: {}", error);
+                return Err(format!("创建转场失败: {}", error));
+            }
+            
+            transition_files.push(transition_path);
+        }
+        
+        // 使用转场后的文件代替原文件
+        segment_files = transition_files;
+    }
+    
+    // 创建片段列表文件
+    let list_file = temp_dir.join("segments.txt");
+    let mut file = fs::File::create(&list_file)
+        .map_err(|e| format!("创建片段列表文件失败: {}", e))?;
+    
+    for segment_path in &segment_files {
+        writeln!(file, "file '{}'", segment_path)
+            .map_err(|e| format!("写入片段列表失败: {}", e))?;
+    }
+    
+    // 使用FFmpeg连接所有片段
+    let concat_command = format!(
+        "ffmpeg -y -f concat -safe 0 -i \"{}\" -c copy \"{}\"",
+        list_file.to_string_lossy(),
+        params.output_path
+    );
+    
+    // 发送进度更新
+    window.emit("cut_progress", 0.9).unwrap_or_default();
+    
+    // 执行连接命令
+    println!("执行连接命令: {}", concat_command);
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(&concat_command)
+        .output()
+        .map_err(|e| format!("执行FFmpeg连接命令失败: {}", e))?;
+        
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        println!("FFmpeg错误: {}", error);
+        return Err(format!("连接片段失败: {}", error));
+    }
+    
+    // 发送进度更新
+    window.emit("cut_progress", 1.0).unwrap_or_default();
+    
+    // 清理临时文件
+    for segment_path in segment_files {
+        fs::remove_file(segment_path).unwrap_or_default();
+    }
+    for subtitle_path in subtitle_files {
+        fs::remove_file(subtitle_path).unwrap_or_default();
+    }
+    fs::remove_file(list_file).unwrap_or_default();
+    
+    Ok(params.output_path)
+}
+
+/// 生成片段预览视频
+#[tauri::command]
+async fn generate_preview(params: PreviewParams) -> Result<String, String> {
+    println!("生成预览片段: {:?}", params);
+    
+    // 确保FFmpeg已安装
+    if !is_ffmpeg_installed() {
+        return Err("未安装FFmpeg，请先安装FFmpeg后再试".into());
+    }
+    
+    // 创建临时文件夹
+    let temp_dir = std::env::temp_dir().join("blazecut_preview");
+    fs::create_dir_all(&temp_dir).map_err(|e| format!("创建临时目录失败: {}", e))?;
+    
+    // 生成随机文件名
+    let preview_file = temp_dir.join(format!("preview_{}.mp4", random_id()));
+    let preview_path = preview_file.to_string_lossy().to_string();
+    
+    // 验证片段时间有效
+    if params.segment.end <= params.segment.start {
+        return Err("无效的片段时间范围".into());
+    }
+    
+    // 计算片段时长
+    let duration = params.segment.end - params.segment.start;
+    
+    // 处理音量参数
+    let volume = params.volume.unwrap_or(1.0);
+    let volume_filter = if (volume - 1.0).abs() > 0.01 {
+        format!(",volume={}", volume)
+    } else {
+        "".to_string()
+    };
+    
+    // 处理字幕参数
+    let add_subtitles = params.add_subtitles.unwrap_or(false);
+    let subtitle_filter = if add_subtitles {
+        // 如果段落有内容，添加字幕
+        if let Some(content) = &params.segment.type_field {
+            // 将内容写入临时字幕文件
+            let subtitle_file = temp_dir.join(format!("subtitle_{}.srt", random_id()));
+            let mut file = File::create(&subtitle_file)
+                .map_err(|e| format!("创建字幕文件失败: {}", e))?;
+            
+            // 写入SRT格式字幕
+            writeln!(file, "1")?;
+            writeln!(file, "00:00:00,000 --> 00:{:02}:{:02},000", 
+                (duration as u32) / 60, (duration as u32) % 60)?;
+            writeln!(file, "{}", content)?;
+            
+            // 添加字幕滤镜
+            format!(",subtitles='{}'", subtitle_file.to_string_lossy())
+        } else {
+            "".to_string()
+        }
+    } else {
+        "".to_string()
+    };
+    
+    // 构建视频过滤器
+    let video_filters = format!("scale=1280:720{}{}", volume_filter, subtitle_filter);
+    
+    // 构建FFmpeg命令
+    let ffmpeg_command = format!(
+        "ffmpeg -y -ss {} -i \"{}\" -t {} -vf \"{}\" -c:v libx264 -c:a aac -strict experimental \"{}\"",
+        params.segment.start,
+        params.input_path,
+        duration,
+        video_filters,
+        preview_path
+    );
+    
+    // 执行FFmpeg命令
+    println!("执行FFmpeg命令: {}", ffmpeg_command);
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(&ffmpeg_command)
+        .output()
+        .map_err(|e| format!("执行FFmpeg命令失败: {}", e))?;
+        
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        println!("FFmpeg错误: {}", error);
+        return Err(format!("生成预览失败: {}", error));
+    }
+    
+    Ok(preview_path)
+}
+
+/// 清理临时文件
+#[tauri::command]
+fn clean_temp_file(params: CleanFileParams) -> Result<(), String> {
+    println!("清理临时文件: {}", params.path);
+    
+    // 检查路径有效性
+    if !params.path.contains("temp") && !params.path.contains("blazecut") {
+        return Err("无效的临时文件路径".into());
+    }
+    
+    // 尝试删除文件
+    if let Err(e) = fs::remove_file(&params.path) {
+        println!("删除文件失败: {}", e);
+        return Err(format!("清理临时文件失败: {}", e));
+    }
+    
+    Ok(())
 }
 
 // 工具函数: 检查FFmpeg是否安装
@@ -256,7 +678,7 @@ fn main() {
     println!("启动 BlazeCut 应用");
     
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(|_app| {
             println!("应用设置初始化");
             Ok(())
         })
@@ -264,7 +686,11 @@ fn main() {
             analyze_video,
             extract_key_frames,
             generate_thumbnail,
-            check_app_data_directory
+            check_app_data_directory,
+            save_project_file,
+            cut_video,
+            generate_preview,
+            clean_temp_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
