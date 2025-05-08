@@ -11,6 +11,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use tauri::api::path::app_data_dir;
 use tauri::Window;
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct VideoMetadata {
@@ -363,10 +364,13 @@ async fn cut_video(params: CutVideoParams, window: Window) -> Result<String, Str
             let mut file = File::create(&subtitle_file)
                 .map_err(|e| format!("创建字幕文件失败: {}", e))?;
             
-            writeln!(file, "1")?;
+            writeln!(file, "1")
+                .map_err(|e| format!("写入字幕失败: {}", e))?;
             writeln!(file, "00:00:00,000 --> 00:{:02}:{:02},000", 
-                (duration as u32) / 60, (duration as u32) % 60)?;
-            writeln!(file, "{}", segment.content.as_ref().unwrap())?;
+                (duration as u32) / 60, (duration as u32) % 60)
+                .map_err(|e| format!("写入字幕失败: {}", e))?;
+            writeln!(file, "{}", segment.content.as_ref().unwrap())
+                .map_err(|e| format!("写入字幕失败: {}", e))?;
             
             // 添加字幕滤镜
             if !video_filters.is_empty() {
@@ -574,10 +578,13 @@ async fn generate_preview(params: PreviewParams) -> Result<String, String> {
                 .map_err(|e| format!("创建字幕文件失败: {}", e))?;
             
             // 写入SRT格式字幕
-            writeln!(file, "1")?;
+            writeln!(file, "1")
+                .map_err(|e| format!("写入字幕失败: {}", e))?;
             writeln!(file, "00:00:00,000 --> 00:{:02}:{:02},000", 
-                (duration as u32) / 60, (duration as u32) % 60)?;
-            writeln!(file, "{}", content)?;
+                (duration as u32) / 60, (duration as u32) % 60)
+                .map_err(|e| format!("写入字幕失败: {}", e))?;
+            writeln!(file, "{}", content)
+                .map_err(|e| format!("写入字幕失败: {}", e))?;
             
             // 添加字幕滤镜
             format!(",subtitles='{}'", subtitle_file.to_string_lossy())
@@ -637,6 +644,124 @@ fn clean_temp_file(params: CleanFileParams) -> Result<(), String> {
     Ok(())
 }
 
+/// 列出应用数据目录中的文件
+#[command]
+fn list_app_data_files(directory: String) -> Result<Vec<String>, String> {
+    let app_data_dir = match app_data_dir(&Default::default()) {
+        Some(dir) => dir,
+        None => return Err("无法获取应用数据目录".into()),
+    };
+
+    let target_dir = app_data_dir.join(directory);
+    
+    // 确保目录存在
+    if !target_dir.exists() {
+        match fs::create_dir_all(&target_dir) {
+            Ok(_) => (),
+            Err(e) => return Err(format!("创建目录失败: {}", e)),
+        }
+    }
+
+    // 读取目录内容
+    let entries = match fs::read_dir(&target_dir) {
+        Ok(entries) => entries,
+        Err(e) => return Err(format!("读取目录失败: {}", e)),
+    };
+
+    // 收集文件名
+    let mut files = Vec::new();
+    for entry in entries {
+        match entry {
+            Ok(entry) => {
+                if let Some(file_name) = entry.file_name().to_str() {
+                    files.push(file_name.to_string());
+                }
+            },
+            Err(e) => return Err(format!("读取目录项失败: {}", e)),
+        }
+    }
+
+    Ok(files)
+}
+
+/// 删除项目文件
+#[command]
+fn delete_project_file(project_id: String) -> Result<(), String> {
+    let app_data_dir = match app_data_dir(&Default::default()) {
+        Some(dir) => dir,
+        None => return Err("无法获取应用数据目录".into()),
+    };
+
+    let file_path = app_data_dir.join("blazecut").join(format!("{}.json", project_id));
+    
+    // 检查文件是否存在
+    if !file_path.exists() {
+        return Err(format!("项目文件不存在: {}", file_path.display()));
+    }
+
+    // 删除文件
+    match fs::remove_file(&file_path) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("删除文件失败: {}", e)),
+    }
+}
+
+/// 删除文件
+#[command]
+fn remove_file(path: String) -> Result<(), String> {
+    match fs::remove_file(&path) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("删除文件失败: {}", e)),
+    }
+}
+
+/// 打开文件
+#[command]
+fn open_file(path: String) -> Result<(), String> {
+    use std::process::Command;
+    
+    #[cfg(target_os = "windows")]
+    {
+        // Windows
+        let status = Command::new("cmd")
+            .args(&["/C", "start", "", &path])
+            .status()
+            .map_err(|e| format!("无法执行命令: {}", e))?;
+        
+        if !status.success() {
+            return Err("无法打开文件".into());
+        }
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        // macOS
+        let status = Command::new("open")
+            .arg(&path)
+            .status()
+            .map_err(|e| format!("无法执行命令: {}", e))?;
+        
+        if !status.success() {
+            return Err("无法打开文件".into());
+        }
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        // Linux
+        let status = Command::new("xdg-open")
+            .arg(&path)
+            .status()
+            .map_err(|e| format!("无法执行命令: {}", e))?;
+        
+        if !status.success() {
+            return Err("无法打开文件".into());
+        }
+    }
+    
+    Ok(())
+}
+
 // 工具函数: 检查FFmpeg是否安装
 fn is_ffmpeg_installed() -> bool {
     let ffmpeg = Command::new("ffmpeg")
@@ -648,6 +773,30 @@ fn is_ffmpeg_installed() -> bool {
         .output();
     
     ffmpeg.is_ok() && ffprobe.is_ok()
+}
+
+/// 检查FFmpeg是否已安装
+#[tauri::command]
+fn check_ffmpeg() -> Result<HashMap<String, serde_json::Value>, String> {
+    let mut result = HashMap::new();
+    
+    let is_installed = is_ffmpeg_installed();
+    result.insert("installed".to_string(), serde_json::Value::Bool(is_installed));
+    
+    if is_installed {
+        // 获取FFmpeg版本信息
+        if let Ok(output) = Command::new("ffmpeg")
+            .arg("-version")
+            .output() {
+            if output.status.success() {
+                let version_str = String::from_utf8_lossy(&output.stdout);
+                let first_line = version_str.lines().next().unwrap_or("");
+                result.insert("version".to_string(), serde_json::Value::String(first_line.to_string()));
+            }
+        }
+    }
+    
+    Ok(result)
 }
 
 // 工具函数: 解析FFmpeg帧率字符串 (如 "24000/1001")
@@ -688,9 +837,14 @@ fn main() {
             generate_thumbnail,
             check_app_data_directory,
             save_project_file,
+            list_app_data_files,
+            delete_project_file,
+            remove_file,
+            open_file,
             cut_video,
             generate_preview,
-            clean_temp_file
+            clean_temp_file,
+            check_ffmpeg
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getApiKey } from './tauriService';
 import { formatDuration } from '@/utils/format';
 import { AIModelType, AIModel } from '@/types';
+import { VideoMetadata } from './videoService';
 
 export interface ScriptGenerationSettings {
   style?: string;    // 风格: 简洁/详细/幽默等
@@ -663,4 +664,245 @@ export const parseGeneratedScript = (content: string, projectId: string): Script
   };
 };
 
-export default aiService; 
+export default aiService;
+
+/**
+ * AI响应接口
+ */
+interface AIResponse {
+  text: string;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
+}
+
+/**
+ * 使用AI生成脚本
+ * @param videoMetadata 视频元数据
+ * @param keyFramesDescriptions 关键帧描述数组
+ * @param preferences 生成偏好设置
+ * @returns 生成的脚本内容
+ */
+export const generateScriptWithAI = async (
+  videoMetadata: VideoMetadata,
+  keyFramesDescriptions: string[],
+  preferences: {
+    style?: string; // 剧本风格：幽默、严肃、感人等
+    tone?: string;  // 语气：正式、随意、生动等
+    length?: 'short' | 'medium' | 'long'; // 长度：短、中、长
+    purpose?: string; // 目的：教育、营销、娱乐等
+    targetAudience?: string; // 目标受众：儿童、成人、专业人士等
+    additionalRequirements?: string; // 其他要求
+  }
+): Promise<string> => {
+  try {
+    // 获取API密钥
+    const apiKey = await getApiKey('openai');
+    if (!apiKey) {
+      message.error('未配置OpenAI API密钥，请先在设置中配置');
+      throw new Error('未配置API密钥');
+    }
+
+    console.log('开始生成脚本...');
+    
+    // 构建提示词
+    const prompt = constructPrompt(videoMetadata, keyFramesDescriptions, preferences);
+    
+    // 调用OpenAI API
+    const response = await callOpenAI(prompt, apiKey);
+    
+    console.log('脚本生成完成');
+    return response.text;
+  } catch (error) {
+    console.error('脚本生成失败:', error);
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : String(error);
+      
+    let friendlyMessage = '脚本生成失败';
+    if (errorMessage.includes('API密钥')) {
+      friendlyMessage = '请检查API密钥是否正确';
+    } else if (errorMessage.includes('网络')) {
+      friendlyMessage = '网络连接失败，请检查网络设置';
+    }
+    
+    message.error(friendlyMessage);
+    throw new Error(friendlyMessage);
+  }
+};
+
+/**
+ * 构建AI提示词
+ */
+function constructPrompt(
+  videoMetadata: VideoMetadata,
+  keyFramesDescriptions: string[],
+  preferences: {
+    style?: string;
+    tone?: string;
+    length?: 'short' | 'medium' | 'long';
+    purpose?: string;
+    targetAudience?: string;
+    additionalRequirements?: string;
+  }
+): string {
+  // 组装关键帧描述
+  const framesDescription = keyFramesDescriptions
+    .map((desc, index) => `关键帧${index + 1}: ${desc}`)
+    .join('\n');
+  
+  // 脚本长度指南
+  const lengthGuide = {
+    short: '短剧本(1-2分钟)',
+    medium: '中等长度剧本(2-5分钟)',
+    long: '长剧本(5-10分钟)'
+  }[preferences.length || 'medium'];
+  
+  // 构建提示词
+  const prompt = `
+请为以下视频内容创建一个引人入胜的短剧本:
+
+视频信息:
+- 时长: ${videoMetadata.duration}秒
+- 分辨率: ${videoMetadata.width}x${videoMetadata.height}
+- 帧率: ${videoMetadata.fps}fps
+
+关键视觉内容:
+${framesDescription}
+
+生成要求:
+- 风格: ${preferences.style || '自然流畅'}
+- 语气: ${preferences.tone || '专业'}
+- 长度: ${lengthGuide}
+- 目的: ${preferences.purpose || '内容展示'}
+- 目标受众: ${preferences.targetAudience || '普通观众'}
+${preferences.additionalRequirements ? `- 额外要求: ${preferences.additionalRequirements}` : ''}
+
+请生成一个按时间轴组织的剧本，每个片段包含开始时间、结束时间和对应的文本内容。
+剧本应该与视频内容高度契合，并确保整体叙事连贯、有吸引力。
+`;
+
+  return prompt;
+}
+
+/**
+ * 调用OpenAI API
+ */
+async function callOpenAI(prompt: string, apiKey: string): Promise<AIResponse> {
+  const url = 'https://api.openai.com/v1/chat/completions';
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: '你是一位专业的视频脚本撰写助手，善于根据视频内容创作引人入胜的短视频脚本。'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000
+      })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`API请求失败: ${errorData.error?.message || response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    return {
+      text: data.choices[0].message.content,
+      usage: data.usage
+    };
+  } catch (error) {
+    console.error('OpenAI API调用失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 使用AI分析关键帧内容
+ * @param framePaths 关键帧图片路径数组
+ * @returns 关键帧描述数组
+ */
+export const analyzeKeyFramesWithAI = async (
+  framePaths: string[]
+): Promise<string[]> => {
+  try {
+    console.log('正在分析关键帧内容:', framePaths);
+    
+    // 模拟关键帧分析
+    // 在实际应用中，这里应该使用 AI 模型分析图片内容
+    const descriptions = framePaths.map((_, index) => {
+      return `关键帧 ${index + 1} 中的场景描述`;
+    });
+    
+    console.log('关键帧分析结果:', descriptions);
+    return descriptions;
+  } catch (error) {
+    console.error('分析关键帧内容失败:', error);
+    message.error('分析关键帧内容失败，将使用默认描述');
+    
+    // 返回默认描述
+    return framePaths.map((_, index) => `关键帧 ${index + 1}`);
+  }
+};
+
+/**
+ * 使用AI优化脚本
+ * @param originalScript 原始脚本内容
+ * @param instructions 优化指令
+ * @returns 优化后的脚本内容
+ */
+export const improveScriptWithAI = async (
+  originalScript: string,
+  instructions: string
+): Promise<string> => {
+  try {
+    // 获取API密钥
+    const apiKey = await getApiKey('openai');
+    if (!apiKey) {
+      message.error('未配置OpenAI API密钥，请先在设置中配置');
+      throw new Error('未配置API密钥');
+    }
+
+    console.log('开始优化脚本...');
+    
+    // 构建提示词
+    const prompt = `
+请根据以下指示优化视频脚本:
+
+原始脚本:
+${originalScript}
+
+优化指示:
+${instructions}
+
+请保持原始脚本的时间轴格式和整体结构，同时根据上述指示进行改进。
+`;
+    
+    // 调用OpenAI API
+    const response = await callOpenAI(prompt, apiKey);
+    
+    console.log('脚本优化完成');
+    return response.text;
+  } catch (error) {
+    console.error('脚本优化失败:', error);
+    message.error('脚本优化失败，请稍后再试');
+    throw new Error('脚本优化失败');
+  }
+}; 

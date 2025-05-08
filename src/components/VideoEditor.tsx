@@ -27,7 +27,8 @@ import {
   DownloadOutlined,
   EyeOutlined,
   SoundOutlined,
-  TransactionOutlined
+  TransactionOutlined,
+  DragOutlined
 } from '@ant-design/icons';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open, save } from '@tauri-apps/api/dialog';
@@ -42,7 +43,7 @@ const { TabPane } = Tabs;
 interface VideoEditorProps {
   videoPath: string;
   segments: ScriptSegment[];
-  onEditComplete?: (outputPath: string) => void;
+  onEditComplete?: (outputPath: string | ScriptSegment[]) => void;
 }
 
 interface SegmentStyleProps {
@@ -51,7 +52,7 @@ interface SegmentStyleProps {
   color: string;
 }
 
-// 添加转场效果类型
+// 转场效果类型定义
 type TransitionType = 'none' | 'fade' | 'dissolve' | 'wipe' | 'slide';
 
 // 转场效果配置
@@ -62,6 +63,9 @@ const transitionOptions = [
   { value: 'wipe', label: '擦除效果' },
   { value: 'slide', label: '滑动效果' }
 ];
+
+// 全局变量存储视频时长，用于拖拽边界计算
+let globalVideoDuration = 0;
 
 const VideoEditor: React.FC<VideoEditorProps> = ({ videoPath, segments, onEditComplete }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -86,18 +90,32 @@ const VideoEditor: React.FC<VideoEditorProps> = ({ videoPath, segments, onEditCo
   const [settingsTab, setSettingsTab] = useState<string>('general');
   const [useSubtitles, setUseSubtitles] = useState<boolean>(true);
 
-  // 视频时长改变时更新状态
+  // 拖拽相关状态
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragType, setDragType] = useState<'move' | 'start' | 'end' | null>(null);
+  const [dragSegmentId, setDragSegmentId] = useState<string | null>(null);
+  const [editedSegments, setEditedSegments] = useState<ScriptSegment[]>(segments);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  
+  // 当传入的segments变化时，更新editedSegments
+  useEffect(() => {
+    setEditedSegments(segments);
+  }, [segments]);
+
+  // 视频时长改变时更新状态和全局变量
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const handleLoadedMetadata = () => {
       setDuration(video.duration);
+      globalVideoDuration = video.duration; // 更新全局变量
     };
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
     if (video.readyState >= 2) {
       setDuration(video.duration);
+      globalVideoDuration = video.duration; // 更新全局变量
     }
 
     return () => {
@@ -232,7 +250,7 @@ const VideoEditor: React.FC<VideoEditorProps> = ({ videoPath, segments, onEditCo
   const handleExportVideo = async () => {
     setShowConfirmModal(false);
     
-    if (!segments || segments.length === 0) {
+    if (!editedSegments || editedSegments.length === 0) {
       message.warning('没有可用的脚本片段来剪辑视频');
       return;
     }
@@ -260,7 +278,7 @@ const VideoEditor: React.FC<VideoEditorProps> = ({ videoPath, segments, onEditCo
       await invoke('cut_video', {
         inputPath: videoPath,
         outputPath: savePath,
-        segments: segments.map(s => ({
+        segments: editedSegments.map(s => ({
           start: s.startTime,
           end: s.endTime,
           type: s.type,
@@ -294,6 +312,104 @@ const VideoEditor: React.FC<VideoEditorProps> = ({ videoPath, segments, onEditCo
     } finally {
       setProcessing(false);
     }
+  };
+
+  // 计算时间轴上的时间位置
+  const getTimeFromPosition = (clientX: number): number => {
+    if (!timelineRef.current) return 0;
+    
+    const rect = timelineRef.current.getBoundingClientRect();
+    const relativeX = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, relativeX / rect.width));
+    
+    return percentage * duration;
+  };
+  
+  // 开始拖拽
+  const handleDragStart = (segmentId: string, type: 'move' | 'start' | 'end', e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsDragging(true);
+    setDragType(type);
+    setDragSegmentId(segmentId);
+    
+    // 添加拖拽事件监听器
+    document.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('mouseup', handleDragEnd);
+  };
+  
+  // 拖拽移动
+  const handleDragMove = (e: MouseEvent) => {
+    if (!isDragging || !dragSegmentId || !dragType) return;
+    
+    const currentTime = getTimeFromPosition(e.clientX);
+    
+    setEditedSegments(prev => 
+      prev.map(segment => {
+        if (segment.id !== dragSegmentId) return segment;
+        
+        const original = segment;
+        let newStart = original.startTime;
+        let newEnd = original.endTime;
+        
+        switch (dragType) {
+          case 'move': {
+            // 移动整个片段，保持时长不变
+            const segmentDuration = original.endTime - original.startTime;
+            newStart = currentTime;
+            newEnd = currentTime + segmentDuration;
+            
+            // 确保不超出视频边界
+            if (newStart < 0) {
+              newStart = 0;
+              newEnd = segmentDuration;
+            }
+            if (newEnd > globalVideoDuration) {
+              newEnd = globalVideoDuration;
+              newStart = newEnd - segmentDuration;
+            }
+            break;
+          }
+          case 'start': {
+            // 只调整起始时间
+            newStart = Math.min(currentTime, original.endTime - 0.5); // 最小持续时间为0.5秒
+            newStart = Math.max(0, newStart); // 不能小于0
+            break;
+          }
+          case 'end': {
+            // 只调整结束时间
+            newEnd = Math.max(currentTime, original.startTime + 0.5); // 最小持续时间为0.5秒
+            newEnd = Math.min(duration, newEnd); // 不能超过视频时长
+            break;
+          }
+        }
+        
+        return {
+          ...segment,
+          startTime: newStart,
+          endTime: newEnd
+        };
+      })
+    );
+  };
+  
+  // 结束拖拽
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    setDragType(null);
+    setDragSegmentId(null);
+    
+    // 移除拖拽事件监听器
+    document.removeEventListener('mousemove', handleDragMove);
+    document.removeEventListener('mouseup', handleDragEnd);
+  };
+  
+  // 将修改后的片段保存到父组件
+  const handleSaveSegments = () => {
+    if (onEditComplete) {
+      // 更新父组件中的片段
+      onEditComplete(editedSegments);
+    }
+    message.success('片段时间已更新');
   };
 
   return (
@@ -335,8 +451,8 @@ const VideoEditor: React.FC<VideoEditorProps> = ({ videoPath, segments, onEditCo
           <Text>{formatTime(duration)}</Text>
         </div>
         
-        <div className={styles.timelineContainer}>
-          {segments.map((segment, index) => {
+        <div className={styles.timelineContainer} ref={timelineRef}>
+          {editedSegments.map((segment, index) => {
             const { left, width, color } = getSegmentStyle(segment);
             return (
               <Tooltip 
@@ -348,7 +464,24 @@ const VideoEditor: React.FC<VideoEditorProps> = ({ videoPath, segments, onEditCo
                   style={{ left, width, backgroundColor: color }}
                   onClick={() => handleSegmentClick(segment)}
                 >
-                  {index + 1}
+                  <div 
+                    className={styles.segmentResizeHandle} 
+                    style={{ left: 0 }}
+                    onMouseDown={(e) => handleDragStart(segment.id, 'start', e)}
+                  />
+                  
+                  <div 
+                    className={styles.segmentContent}
+                    onMouseDown={(e) => handleDragStart(segment.id, 'move', e)}
+                  >
+                    {index + 1}
+                  </div>
+                  
+                  <div 
+                    className={styles.segmentResizeHandle} 
+                    style={{ right: 0 }}
+                    onMouseDown={(e) => handleDragStart(segment.id, 'end', e)}
+                  />
                 </div>
               </Tooltip>
             );
@@ -393,7 +526,7 @@ const VideoEditor: React.FC<VideoEditorProps> = ({ videoPath, segments, onEditCo
               type="primary" 
               icon={<ScissorOutlined />} 
               onClick={showExportSettings}
-              disabled={processing || segments.length === 0}
+              disabled={processing || editedSegments.length === 0}
             >
               生成混剪视频
             </Button>
@@ -404,6 +537,15 @@ const VideoEditor: React.FC<VideoEditorProps> = ({ videoPath, segments, onEditCo
               disabled={processing}
             >
               导出设置
+            </Button>
+            
+            {/* 添加保存片段按钮 */}
+            <Button
+              icon={<SaveOutlined />}
+              onClick={handleSaveSegments}
+              disabled={processing}
+            >
+              保存片段时间
             </Button>
           </Space>
           

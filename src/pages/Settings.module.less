@@ -1,285 +1,566 @@
+/**
+ * 设置页面样式
+ * 提供系统设置和AI模型配置界面样式
+ * 
+ * @author Agions
+ * @date 2024
+ * @version 2.0
+ * @description 基于Ant Design的高级设置界面，支持响应式布局和深色模式
+ */
+@import '../styles/variables.less';
+
+// 基础变量定义
+@primary-color: #1890ff;
+@border-radius-base: 8px;
+@box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+@box-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.12);
+@transition-duration: 0.3s;
+
+// 深色模式变量
+@dark-bg: #1f1f1f;
+@dark-card: #2a2a2a;
+@dark-border: #303030;
+
 .container {
-  padding: 24px;
-  max-width: 900px;
+  max-width: 1200px;
   margin: 0 auto;
+  padding: 24px;
   
-  h1 {
+  @media (max-width: 768px) {
+    padding: 16px;
+  }
+  
+  .header {
     margin-bottom: 24px;
-    color: var(--text-color-primary, rgba(0, 0, 0, 0.85));
+    
+    h2 {
+      font-size: 28px;
+      margin-bottom: 8px;
+      
+      @media (max-width: 768px) {
+        font-size: 24px;
+      }
+    }
   }
 }
 
 .settingsCard {
-  .ant-card-head {
-    border-bottom: 1px solid #f0f0f0;
+  background-color: var(--bg-color-component);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  transition: box-shadow @transition-duration ease;
+  margin-bottom: 32px;
+  
+  &:hover {
+    box-shadow: @box-shadow-hover;
+  }
+  
+  &.darkCard {
+    background-color: @dark-card;
+    border-color: @dark-border;
+  }
+
+  @media (max-width: @screen-sm) {
+    border-radius: @border-radius-base;
   }
 }
 
-.alert {
-  margin-bottom: 24px;
-}
-
-.loadingTip {
-  text-align: center;
-  padding: 40px 0;
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.apiKeyHelp {
-  margin-top: 8px;
-  margin-bottom: 16px;
-  font-size: 13px;
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.apiKeyInput {
-  .ant-input-suffix {
-    display: flex;
-    align-items: center;
+.tabs {
+  min-height: 500px;
+  
+  :global {
+    .ant-tabs-nav {
+      width: 200px;
+      
+      @media (max-width: 768px) {
+        width: 120px;
+      }
+    }
     
-    .ant-btn {
-      margin-left: 8px;
+    .ant-tabs-tab {
+      padding: 12px 16px;
+      margin: 0;
+      transition: all @transition-duration;
+      
+      @media (max-width: 768px) {
+        padding: 10px;
+      }
+      
+      &:hover {
+        background-color: rgba(0, 0, 0, 0.03);
+      }
+      
+      &.ant-tabs-tab-active {
+        background-color: rgba(24, 144, 255, 0.1);
+      }
+    }
+    
+    .ant-tabs-content {
+      padding: 0 16px;
+      
+      @media (max-width: 768px) {
+        padding: 0 8px;
+      }
     }
   }
 }
 
-.apiKeyExample {
-  color: rgba(0, 0, 0, 0.45);
-  font-size: 12px;
-  margin-top: 4px;
+.form {
+  width: 100%;
 }
 
-.testing {
-  color: #1890ff;
+.modelList {
+  padding: 16px 0;
+  
+  .alert {
+    margin-bottom: 24px;
+    border-radius: @border-radius-base;
+  }
+}
+
+.modelGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .success {
   color: #52c41a;
+  padding: 4px 0;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  
+  .anticon {
+    margin-right: 6px;
+  }
 }
 
 .error {
   color: #f5222d;
+  padding: 4px 0;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  
+  .anticon {
+    margin-right: 6px;
+  }
 }
 
-.sectionTitle {
-  margin-bottom: 24px;
-  color: rgba(0, 0, 0, 0.85);
-  font-weight: 600;
-  font-size: 16px;
+.testButton {
+  margin-left: 8px;
+  height: 100%;
+  border: none;
+  border-radius: 0 @border-radius-base @border-radius-base 0;
+}
+
+.defaultButton {
+  margin-left: 8px;
+  border-radius: 6px;
 }
 
 .switchItem {
   margin-bottom: 16px;
+  padding: 12px;
+  border-radius: @border-radius-base;
+  background-color: rgba(0, 0, 0, 0.02);
+  transition: background-color @transition-duration;
   
-  .ant-switch {
-    margin-right: 8px;
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.04);
   }
   
-  .switchLabel {
-    font-size: 14px;
-    vertical-align: middle;
+  @media (max-width: 768px) {
+    padding: 8px;
+    margin-bottom: 12px;
   }
 }
 
-.badge {
-  margin-left: 8px;
+.languageSelector {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: @border-radius-base;
+  background-color: rgba(0, 0, 0, 0.02);
+  transition: background-color @transition-duration;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+  
+  .anticon {
+    font-size: 20px;
+    margin-right: 12px;
+    color: @primary-color;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 8px;
+    margin-bottom: 12px;
+  }
 }
 
-.modelSection {
-  margin-bottom: 32px;
-}
-
-.loading {
+.settingRow {
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: 100vh;
-  font-size: 16px;
-  color: rgba(0, 0, 0, 0.65);
-}
-
-// 申请密钥按钮样式
-.applyKeyButton {
-  font-weight: 500;
-  transition: all 0.3s ease;
-  margin-right: 8px;
-  box-shadow: 0 2px 4px rgba(24, 144, 255, 0.3);
+  justify-content: space-between;
   
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(24, 144, 255, 0.4);
-  }
-  
-  &:active {
-    transform: translateY(1px);
-    box-shadow: 0 1px 2px rgba(24, 144, 255, 0.3);
-  }
-}
-
-// 暗黑模式适配
-:global(.dark) {
-  .settingsCard {
-    background-color: #1f1f1f;
+  .anticon {
+    font-size: 20px;
+    margin-right: 12px;
+    color: @primary-color;
     
-    .ant-card-head {
-      border-bottom-color: #303030;
+    @media (max-width: 768px) {
+      font-size: 18px;
+      margin-right: 8px;
     }
   }
+}
+
+.switchLabel {
+  flex: 1;
+  font-weight: 500;
+  margin-right: 16px;
   
-  .apiKeyHelp,
-  .apiKeyExample {
-    color: rgba(255, 255, 255, 0.45);
-  }
-  
-  .sectionTitle {
-    color: rgba(255, 255, 255, 0.85);
-  }
-  
-  .switchLabel {
-    color: rgba(255, 255, 255, 0.85);
+  @media (max-width: 768px) {
+    margin-right: 8px;
   }
 }
 
-// 模型列表样式
-.modelList {
-  margin-bottom: 24px;
+.settingDescription {
+  color: var(--text-color-secondary);
+  font-size: 14px;
+  margin-top: 4px;
+  max-width: 600px;
+  
+  @media (max-width: 768px) {
+    font-size: 12px;
+  }
 }
 
-.modelItem {
-  padding: 16px;
-  border-radius: 8px;
-  background-color: var(--bg-color-secondary, #f5f5f5);
-  margin-bottom: 16px;
-  transition: all 0.3s;
+.formItem {
+  margin-bottom: 20px;
+  
+  @media (max-width: 768px) {
+    margin-bottom: 16px;
+  }
+  
+  :global {
+    .ant-form-item-label {
+      padding-bottom: 4px;
+    }
+  }
+}
+
+.apiKeyInput {
+  width: 100%;
+  max-width: 500px;
+  border-radius: @border-radius-base;
+  
+  :global {
+    .ant-input-group-addon {
+      padding: 0;
+    }
+  }
+}
+
+.validationStatus {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.optionContainer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  
+  @media (max-width: 992px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.optionCard {
+  border-radius: @border-radius-base;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  transition: box-shadow @transition-duration;
   
   &:hover {
-    background-color: var(--bg-color-component, #fff);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 }
 
-.modelHeader {
+.chineseModelsGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.dependencyItem {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   margin-bottom: 16px;
-}
-
-.modelInfo {
-  display: flex;
-  align-items: center;
-}
-
-.modelIcon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: #1890ff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  
-  .anticon {
-    color: #fff;
-    font-size: 20px;
-  }
-}
-
-.modelName {
-  font-size: 16px;
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--text-color-primary, rgba(0, 0, 0, 0.85));
-}
-
-.modelProvider {
-  font-size: 14px;
-  color: var(--text-color-secondary, rgba(0, 0, 0, 0.45));
-}
-
-.modelEnabled {
-  color: #52c41a;
-  font-size: 18px;
-}
-
-// API密钥申请指南样式
-.apiGuideModal {
-  :global(.ant-modal-content) {
-    background-color: var(--bg-color-component, #fff);
-  }
-  
-  :global(.ant-modal-header) {
-    background-color: var(--bg-color-component, #fff);
-    border-bottom-color: var(--border-color, #f0f0f0);
-  }
-  
-  :global(.ant-modal-title) {
-    color: var(--text-color-primary, rgba(0, 0, 0, 0.85));
-  }
-  
-  :global(.ant-modal-close) {
-    color: var(--text-color-secondary, rgba(0, 0, 0, 0.45));
-  }
-}
-
-.apiGuideContent {
-  color: var(--text-color-primary, rgba(0, 0, 0, 0.85));
-  
-  h5 {
-    margin-top: 20px;
-    margin-bottom: 12px;
-    color: var(--text-color-primary, rgba(0, 0, 0, 0.85));
-  }
-}
-
-.guideSteps {
-  margin: 16px 0;
-  padding-left: 24px;
-  
-  li {
-    margin-bottom: 8px;
-    color: var(--text-color-primary, rgba(0, 0, 0, 0.85));
-  }
-}
-
-.apiExample {
-  background-color: var(--bg-color-secondary, #f5f5f5);
-  padding: 12px 16px;
+  padding: 12px;
+  background-color: var(--bg-color-secondary);
   border-radius: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+}
+
+.dependencyInfo {
+  flex: 1;
+}
+
+.dependencyStatus {
+  margin-left: 16px;
+}
+
+.installInstruction {
+  margin-top: 24px;
   
-  code {
-    font-family: monospace;
-    color: #d56161;
+  .installCard {
+    margin-top: 12px;
+    background-color: var(--bg-color-secondary);
+    border-radius: 10px;
+    border: none;
+    
+    code {
+      background-color: rgba(0, 0, 0, 0.06);
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    }
   }
 }
 
-.apiKeyExtra {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: var(--text-color-secondary, rgba(0, 0, 0, 0.45));
-}
-
-.helpIcon {
-  cursor: pointer;
-  color: var(--text-color-secondary, rgba(0, 0, 0, 0.45));
-  
-  &:hover {
-    color: #1890ff;
-  }
-}
-
-.formButtons {
+.actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 24px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  
+  .saveButton {
+    min-width: 140px;
+    height: 48px;
+    border-radius: 10px;
+    font-weight: 500;
+    font-size: 16px;
+    box-shadow: 0 4px 12px rgba(24, 144, 255, 0.2);
+  }
 }
 
-.resetButton {
-  margin-right: 12px;
+.loading {
+  padding: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+// 深色模式适配
+:global(.dark) {
+  .tabs {
+    :global {
+      .ant-tabs-nav {
+        background-color: @bg-card-dark;
+        
+        .ant-tabs-tab {
+          &:hover {
+            background-color: rgba(255, 255, 255, 0.08);
+          }
+          
+          &.ant-tabs-tab-active {
+            background-color: rgba(24, 144, 255, 0.15);
+          }
+        }
+      }
+    }
+  }
+  
+  .modelGrid {
+    .modelCard {
+      background-color: @bg-card-dark;
+      border-color: rgba(255, 255, 255, 0.1);
+      
+      .apiKeyExample {
+        background-color: rgba(255, 255, 255, 0.05);
+      }
+    }
+  }
+  
+  .dependencyItem {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .installInstruction {
+    .installCard {
+      background-color: rgba(255, 255, 255, 0.03);
+    }
+  }
+  
+  .actions {
+    border-top-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+// 响应式布局适配
+@media (max-width: 768px) {
+  .tabs {
+    :global {
+      .ant-tabs-nav {
+        width: 100%;
+      }
+    }
+  }
+  
+  .container {
+    .header {
+      h2 {
+        font-size: 28px;
+      }
+    }
+  }
+  
+  .actions {
+    .saveButton {
+      width: 100%;
+    }
+  }
+}
+
+// 适配小屏幕
+@media (max-width: 576px) {
+  .tabs {
+    :global {
+      .ant-tabs-nav {
+        width: 100px;
+      }
+      
+      .ant-tabs-tab {
+        padding: 8px;
+        font-size: 13px;
+      }
+    }
+  }
+  
+  .settingRow {
+    flex-direction: column;
+    align-items: flex-start;
+    
+    .anticon {
+      margin-bottom: 8px;
+    }
+  }
+  
+  .switchLabel {
+    margin-bottom: 4px;
+  }
+  
+  .settingDescription {
+    margin-left: 0;
+    margin-top: 8px;
+  }
+}
+
+.section {
+  margin-bottom: 36px;
+  padding: 16px;
+  background-color: rgba(0, 0, 0, 0.01);
+  border-radius: @border-radius-base;
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 12px;
+    margin-bottom: 24px;
+  }
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+  color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  
+  .anticon {
+    margin-right: 8px;
+    color: @primary-color;
+  }
+  
+  @media (max-width: 768px) {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+}
+
+// 暗黑模式特定样式
+:global(.dark) {
+  .section {
+    background-color: rgba(255, 255, 255, 0.02);
+  }
+  
+  .settingsCard {
+    border-color: #303030;
+  }
+  
+  .sectionTitle {
+    border-color: #303030;
+  }
+  
+  .apiKeyInput {
+    background-color: #141414;
+  }
+}
+
+// 卡片切换样式
+.tabsContainer {
+  :global(.ant-tabs-nav-list) {
+    width: 100%;
+    
+    @media (min-width: 992px) {
+      width: auto;
+    }
+  }
+  
+  :global(.ant-tabs-tab) {
+    margin: 0;
+    width: 100%;
+    justify-content: center;
+    padding: 12px 16px;
+    transition: all 0.3s;
+    
+    @media (min-width: 992px) {
+      width: auto;
+      justify-content: flex-start;
+      padding: 12px 24px;
+    }
+    
+    &:hover {
+      color: @primary-color;
+    }
+  }
+  
+  :global(.ant-tabs-ink-bar) {
+    display: none;
+  }
+  
+  :global(.ant-tabs-tab-active) {
+    background-color: var(--bg-color-secondary);
+    border-radius: 4px;
+    
+    .ant-tabs-tab-btn {
+      color: @primary-color;
+    }
+  }
 } 

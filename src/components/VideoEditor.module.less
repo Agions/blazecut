@@ -53,6 +53,37 @@
   opacity: 0.85;
 }
 
+/* 添加拖拽相关样式 */
+.segmentContent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  cursor: move;
+}
+
+.segmentResizeHandle {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+  z-index: 2;
+  background-color: rgba(255, 255, 255, 0.3);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.segmentMarker:hover .segmentResizeHandle {
+  opacity: 1;
+}
+
+.segmentResizeHandle:hover, .segmentResizeHandle:active {
+  opacity: 1;
+  background-color: rgba(255, 255, 255, 0.6);
+}
+
 .controlsContainer {
   display: flex;
   gap: 10px;

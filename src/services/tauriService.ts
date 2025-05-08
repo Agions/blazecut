@@ -59,8 +59,8 @@ export const ensureAppDataDir = async (): Promise<void> => {
 };
 
 // 保存项目数据到文件
-export const saveProjectToFile = async (project: any): Promise<void> => {
-  if (!project || !project.id) {
+export const saveProjectToFile = async (projectId: string, project: any): Promise<void> => {
+  if (!project || !projectId) {
     console.error('保存项目文件失败: 项目数据无效');
     throw new Error('无效的项目数据');
   }
@@ -72,7 +72,7 @@ export const saveProjectToFile = async (project: any): Promise<void> => {
       throw new Error(`应用数据目录错误: ${err.message || '未知错误'}`);
     });
     
-    const projectPath = `blazecut/${project.id}.json`;
+    const projectPath = `blazecut/${projectId}.json`;
     console.log('正在保存项目文件:', projectPath);
     
     // 准备项目数据
@@ -100,7 +100,7 @@ export const saveProjectToFile = async (project: any): Promise<void> => {
     // 使用Rust函数直接写入文件，提供更好的错误处理
     try {
       await invoke('save_project_file', {
-        projectId: project.id,
+        projectId: projectId,
         content: projectData
       });
       console.log('文件写入成功 (通过Rust函数)');
@@ -133,7 +133,7 @@ export const saveProjectToFile = async (project: any): Promise<void> => {
       // 尝试备用方法保存
       try {
         const configDir = await getConfigDir();
-        const backupPath = `${configDir}${project.id}.json`;
+        const backupPath = `${configDir}${projectId}.json`;
         await writeTextFile(backupPath, projectData);
         console.log('使用备用路径保存成功:', backupPath);
         return;
@@ -443,4 +443,91 @@ export const openExternalUrl = async (url: string): Promise<boolean> => {
       return false;
     }
   }
-}; 
+};
+
+// 列出所有项目
+export const listProjects = async (): Promise<any[]> => {
+  try {
+    // 尝试使用 Rust 函数列出项目
+    try {
+      const projects = await invoke('list_project_files');
+      console.log('通过 Rust 函数获取项目列表成功:', projects);
+      return projects as any[];
+    } catch (rustError) {
+      console.warn('通过 Rust 获取项目列表失败，使用 JS API 替代:', rustError);
+    }
+    
+    // 确保应用数据目录存在
+    await ensureAppDataDir();
+    
+    // 通过 Tauri API 获取所有 .json 文件
+    const appDir = 'blazecut';
+    
+    // 这里需要实现列出目录文件的逻辑，但 @tauri-apps/api/fs 没有直接的 readDir 函数
+    // 使用 invoke 调用 Rust 端的自定义函数
+    const files = await invoke('list_app_data_files', { directory: appDir });
+    
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return [];
+    }
+    
+    // 加载每个项目文件
+    const projectsPromises = (files as string[])
+      .filter(file => file.endsWith('.json'))
+      .map(async (file) => {
+        try {
+          const projectId = file.replace('.json', '');
+          return await loadProjectFromFile(projectId);
+        } catch (error) {
+          console.error(`加载项目 ${file} 失败:`, error);
+          return null;
+        }
+      });
+    
+    const projects = await Promise.all(projectsPromises);
+    
+    // 过滤出成功加载的项目
+    return projects.filter(project => project !== null) as any[];
+  } catch (error) {
+    console.error('列出项目失败:', error);
+    throw error;
+  }
+};
+
+// 删除项目
+export const deleteProject = async (projectId: string): Promise<boolean> => {
+  try {
+    const projectsDir = await ensureAppDataDir();
+    const projectPath = `${projectsDir}/${projectId}.json`;
+    
+    await invoke('delete_file', { path: projectPath });
+    
+    // 验证文件是否已删除
+    try {
+      await invoke('read_text_file', { path: projectPath });
+      console.error('项目文件删除失败:', projectPath);
+      return false;
+    } catch (error) {
+      // 如果文件无法读取，说明已成功删除
+      console.log('项目删除成功:', projectId);
+      return true;
+    }
+  } catch (error) {
+    console.error('删除项目出错:', error);
+    throw error;
+  }
+};
+
+/**
+ * 检查FFmpeg是否已安装
+ * @returns {Promise<{installed: boolean, version?: string}>} FFmpeg安装状态和版本信息
+ */
+export async function checkFFmpeg(): Promise<{installed: boolean, version?: string}> {
+  try {
+    const result = await invoke<{installed: boolean, version?: string}>('check_ffmpeg');
+    return result;
+  } catch (error) {
+    console.error('检查FFmpeg失败:', error);
+    return { installed: false };
+  }
+} 

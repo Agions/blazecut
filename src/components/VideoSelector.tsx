@@ -1,133 +1,154 @@
 import React, { useState } from 'react';
-import { Button, message, Card, Space, Typography, Alert } from 'antd';
-import { UploadOutlined, FileOutlined } from '@ant-design/icons';
-import { selectFile } from '@/services/tauriService';
-
-const { Text } = Typography;
+import { Button, Upload, message, Space, Card, Spin } from 'antd';
+import { UploadOutlined, DeleteOutlined, PlayCircleOutlined } from '@ant-design/icons';
+import { open } from '@tauri-apps/api/dialog';
+import { invoke } from '@tauri-apps/api/tauri';
+import { convertFileSrc } from '@tauri-apps/api/tauri';
+import { analyzeVideo, VideoMetadata, formatDuration, formatResolution } from '@/services/videoService';
+import styles from './VideoSelector.module.less';
 
 interface VideoSelectorProps {
-  onVideoSelected: (path: string, filename: string) => void;
+  initialVideoPath?: string;
+  onVideoSelect: (filePath: string, metadata?: VideoMetadata) => void;
+  onVideoRemove?: () => void;
+  loading?: boolean;
 }
 
-const VideoSelector: React.FC<VideoSelectorProps> = ({ onVideoSelected }) => {
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+/**
+ * 视频选择器组件
+ * 支持选择本地视频文件，并显示视频预览及基本信息
+ */
+const VideoSelector: React.FC<VideoSelectorProps> = ({
+  initialVideoPath,
+  onVideoSelect,
+  onVideoRemove,
+  loading = false
+}) => {
+  const [videoPath, setVideoPath] = useState<string | null>(initialVideoPath || null);
+  const [videoSrc, setVideoSrc] = useState<string | null>(initialVideoPath ? convertFileSrc(initialVideoPath) : null);
+  const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const validateVideoFile = async (filePath: string): Promise<boolean> => {
-    try {
-      // 检查文件扩展名
-      const ext = filePath.toLowerCase().split('.').pop();
-      const validExtensions = ['mp4', 'avi', 'mov', 'mkv', 'webm'];
-      if (!ext || !validExtensions.includes(ext)) {
-        throw new Error('不支持的视频格式，请选择 MP4、AVI、MOV、MKV 或 WEBM 格式的视频');
-      }
-
-      return true;
-    } catch (error) {
-      if (error instanceof Error) {
-        setError(error.message);
-      } else {
-        setError('视频文件验证失败');
-      }
-      return false;
-    }
-  };
-
+  /**
+   * 选择视频文件
+   */
   const handleSelectVideo = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      // 打开文件选择对话框
+      const selected = await open({
+        multiple: false,
+        filters: [{
+          name: '视频文件',
+          extensions: ['mp4', 'mov', 'avi', 'mkv', 'wmv', 'flv']
+        }]
+      });
 
-      const selected = await selectFile([{
-        name: '视频文件',
-        extensions: ['mp4', 'avi', 'mov', 'mkv', 'webm']
-      }]);
-
-      if (!selected) {
-        setLoading(false);
+      // 如果用户取消选择，selected将是null
+      if (!selected || Array.isArray(selected)) {
         return;
       }
 
-      // 验证视频文件
-      const isValid = await validateVideoFile(selected);
-      if (!isValid) {
-        setLoading(false);
-        return;
+      // 设置视频路径
+      const filePath = selected as string;
+      setVideoPath(filePath);
+      setVideoSrc(convertFileSrc(filePath));
+      
+      // 分析视频获取元数据
+      setIsAnalyzing(true);
+      try {
+        const videoMetadata = await analyzeVideo(filePath);
+        setMetadata(videoMetadata);
+        onVideoSelect(filePath, videoMetadata);
+      } catch (error) {
+        console.error('分析视频失败:', error);
+        // 即使分析失败也允许选择视频
+        onVideoSelect(filePath);
+      } finally {
+        setIsAnalyzing(false);
       }
-
-      // 获取文件名
-      const name = selected.split('/').pop() || selected.split('\\').pop() || '';
-      setSelectedFile(selected);
-      setFileName(name);
-      onVideoSelected(selected, name);
-      setError(null);
     } catch (error) {
       console.error('选择视频失败:', error);
-      setError('选择视频失败，请重试');
-    } finally {
-      setLoading(false);
+      message.error('选择视频失败，请重试');
     }
   };
 
-  const handleRetry = () => {
-    setError(null);
-    setSelectedFile(null);
-    setFileName('');
-    handleSelectVideo();
+  /**
+   * 移除选中的视频
+   */
+  const handleRemoveVideo = () => {
+    setVideoPath(null);
+    setVideoSrc(null);
+    setMetadata(null);
+    if (onVideoRemove) {
+      onVideoRemove();
+    }
+  };
+
+  /**
+   * 在默认播放器中播放视频
+   */
+  const handlePlayVideo = async () => {
+    if (!videoPath) return;
+    
+    try {
+      await invoke('open_file', { path: videoPath });
+    } catch (error) {
+      console.error('打开视频失败:', error);
+      message.error('无法打开视频，请确保系统有关联的视频播放器');
+    }
   };
 
   return (
-    <Card title="选择视频" bordered={false} className="video-selector-card">
-      <Space direction="vertical" style={{ width: '100%' }}>
-        {error && (
-          <Alert
-            message="错误"
-            description={error}
-            type="error"
-            showIcon
-            action={
-              <Button size="small" type="primary" onClick={handleRetry}>
-                重试
-              </Button>
-            }
-          />
-        )}
-
-        <Button
-          type="primary"
-          icon={<UploadOutlined />}
-          onClick={handleSelectVideo}
-          loading={loading}
-          block
-          size="large"
-          style={{ 
-            height: '48px', 
-            marginBottom: '20px', 
-            marginTop: '20px',
-            fontSize: '16px'
-          }}
-        >
-          选择视频文件
-        </Button>
-        
-        {selectedFile && !error && (
-          <div className="selected-file-container">
-            <Space>
-              <FileOutlined style={{ fontSize: '18px' }} />
-              <Text strong style={{ fontSize: '15px' }} title={fileName}>
-                已选择: {fileName}
-              </Text>
-            </Space>
+    <div className={styles.videoSelector}>
+      <Spin spinning={loading || isAnalyzing} tip={isAnalyzing ? "分析视频中..." : "加载中..."}>
+        {!videoPath ? (
+          <div className={styles.uploadArea} onClick={handleSelectVideo}>
+            <UploadOutlined className={styles.uploadIcon} />
+            <p>点击选择视频文件</p>
+            <p className={styles.uploadTip}>支持 MP4, MOV, AVI 等格式</p>
+          </div>
+        ) : (
+          <div className={styles.videoPreviewContainer}>
+            <div className={styles.videoPreview}>
+              <video 
+                src={videoSrc || undefined} 
+                controls 
+                className={styles.videoPlayer}
+              />
+            </div>
+            
+            {metadata && (
+              <Card className={styles.metadataCard} size="small" title="视频信息">
+                <p><strong>文件名:</strong> {videoPath.split('/').pop()}</p>
+                <p><strong>时长:</strong> {formatDuration(metadata.duration)}</p>
+                <p><strong>分辨率:</strong> {formatResolution(metadata.width, metadata.height)}</p>
+                <p><strong>帧率:</strong> {metadata.fps} fps</p>
+                <p><strong>编码:</strong> {metadata.codec}</p>
+              </Card>
+            )}
+            
+            <div className={styles.videoActions}>
+              <Space>
+                <Button 
+                  icon={<DeleteOutlined />} 
+                  onClick={handleRemoveVideo}
+                  danger
+                >
+                  移除
+                </Button>
+                <Button 
+                  icon={<PlayCircleOutlined />} 
+                  onClick={handlePlayVideo}
+                  type="primary"
+                >
+                  在播放器中打开
+                </Button>
+              </Space>
+            </div>
           </div>
         )}
-
-        <Text type="secondary" style={{ fontSize: '13px', marginTop: '12px' }}>
-          支持的视频格式：MP4、AVI、MOV、MKV、WEBM
-        </Text>
-      </Space>
-    </Card>
+      </Spin>
+    </div>
   );
 };
 

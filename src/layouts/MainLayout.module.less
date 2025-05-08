@@ -1,3 +1,10 @@
+/**
+ * 主布局样式
+ * 
+ * @author Agions
+ * @date 2024
+ */
+
 .layout {
   min-height: 100vh;
 }
@@ -11,7 +18,7 @@
   padding: 0 24px;
   height: 64px;
   background-color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   z-index: 1000;
   transition: all 0.3s;
   
@@ -26,32 +33,45 @@
 }
 
 .headerRight {
-  gap: 16px;
+  gap: 12px;
 }
 
 .logo {
-  font-size: 24px;
-  font-weight: bold;
-  color: #1890ff;
-  margin-right: 24px;
-  cursor: pointer;
-  background: linear-gradient(90deg, #1890ff, #722ed1);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
   display: flex;
   align-items: center;
+  cursor: pointer;
+  margin-right: 24px;
   user-select: none;
+  transition: all 0.3s;
   
-  &::before {
-    content: '';
-    display: inline-block;
-    width: 24px;
-    height: 24px;
-    background: linear-gradient(135deg, #1890ff, #722ed1);
-    border-radius: 6px;
-    margin-right: 8px;
-    transform: rotate(45deg);
+  &:hover {
+    opacity: 0.9;
   }
+}
+
+.logoIcon {
+  font-size: 24px;
+  color: #FF5252;
+  margin-right: 8px;
+}
+
+.logoText {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1E88E5;
+  background: linear-gradient(90deg, #1E88E5, #7986CB);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.pageTitle {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.65);
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  padding-left: 24px;
+  height: 22px;
+  line-height: 22px;
 }
 
 .menuButton {
@@ -59,9 +79,13 @@
   font-size: 18px;
 }
 
+.mainContainer {
+  padding-top: 64px;
+}
+
 .sider {
   background-color: #fff;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.03);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.02);
   position: fixed;
   height: 100vh;
   left: 0;
@@ -79,10 +103,13 @@
   :global(.ant-menu-item) {
     display: flex;
     align-items: center;
+    padding-left: 24px !important;
     transition: all 0.3s;
+    margin: 4px 0;
+    border-radius: 0 24px 24px 0;
     
     &:hover {
-      background-color: rgba(24, 144, 255, 0.05);
+      background-color: rgba(30, 136, 229, 0.05);
     }
     
     :global(.anticon) {
@@ -91,54 +118,65 @@
   }
   
   :global(.ant-menu-item-selected) {
-    background-color: #e6f7ff;
-    border-right: 3px solid #1890ff;
+    background-color: rgba(30, 136, 229, 0.1) !important;
+    color: #1E88E5 !important;
     font-weight: 500;
     
     &::after {
       display: none;
     }
   }
+  
+  :global(.ant-menu-divider) {
+    margin: 8px 16px !important;
+    background-color: rgba(0, 0, 0, 0.06);
+  }
 }
 
 .content {
   transition: all 0.3s;
-  background-color: #f0f2f5;
+  background-color: #f5f7fa;
   min-height: 100vh;
-  padding-top: 64px;
+  padding-top: 16px;
 }
 
 .contentInner {
   padding: 24px;
-  min-height: calc(100vh - 64px);
-  background-color: #f0f2f5;
+  min-height: calc(100vh - 64px - 80px); // 减去头部和页脚高度
 }
 
 // 暗色模式
 :global(.dark) {
   .header {
-    background-color: #141414;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    background-color: #1c1c1c;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
   
   .sider {
-    background-color: #141414;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+    background-color: #1c1c1c;
     
     :global(.ant-menu-item) {
       &:hover {
-        background-color: rgba(255, 255, 255, 0.08);
+        background-color: rgba(255, 255, 255, 0.03);
       }
     }
     
     :global(.ant-menu-item-selected) {
-      background-color: rgba(255, 255, 255, 0.08);
-      border-right: 3px solid #1890ff;
+      background-color: rgba(30, 136, 229, 0.2) !important;
+    }
+    
+    :global(.ant-menu-divider) {
+      background-color: rgba(255, 255, 255, 0.06);
     }
   }
   
   .content, .contentInner {
-    background-color: #000;
+    background-color: #121212;
+  }
+  
+  .pageTitle {
+    color: rgba(255, 255, 255, 0.85);
+    border-left-color: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -146,10 +184,6 @@
 @media (max-width: 768px) {
   .header {
     padding: 0 16px;
-  }
-  
-  .logo {
-    font-size: 20px;
   }
   
   .contentInner {
@@ -188,7 +222,7 @@
 }
 
 .avatar {
-  background: linear-gradient(135deg, #1890ff, #722ed1);
+  background: linear-gradient(135deg, #1E88E5, #7986CB);
   color: #fff;
 }
 
@@ -197,11 +231,20 @@
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
   
   &:hover {
-    transform: scale(1.1);
-    background-color: rgba(24, 144, 255, 0.05);
+    transform: scale(1.05);
+    background-color: rgba(0, 0, 0, 0.03);
+  }
+  
+  :global(.dark) & {
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
   }
 }
 
@@ -214,18 +257,30 @@
 .drawerHeader {
   display: flex;
   align-items: center;
-  padding: 8px 0;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .mobileDrawer {
   :global(.ant-drawer-body) {
     padding: 0;
   }
+  
+  :global(.ant-drawer-header) {
+    background-color: #fff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 12px 24px;
+    
+    :global(.dark) & {
+      background-color: #1c1c1c;
+      border-bottom-color: rgba(255, 255, 255, 0.06);
+    }
+  }
 }
 
 .footer {
-  margin-top: 48px;
-  padding: 24px;
+  margin-top: 24px;
+  padding: 16px 24px 24px;
   text-align: center;
   background: transparent;
 }
@@ -242,11 +297,19 @@
   margin-bottom: 16px;
   
   a {
-    color: rgba(0, 0, 0, 0.45);
+    color: rgba(0, 0, 0, 0.65);
     transition: all 0.3s;
     
     &:hover {
-      color: #1890ff;
+      color: #1E88E5;
+    }
+    
+    :global(.dark) & {
+      color: rgba(255, 255, 255, 0.65);
+      
+      &:hover {
+        color: #90CAF9;
+      }
     }
   }
 }

@@ -1,5 +1,12 @@
+/**
+ * 主布局组件
+ * 负责应用的整体布局结构，包括导航栏、侧边栏和内容区域
+ * 
+ * @author Agions
+ * @date 2024
+ */
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Button, Drawer, Tooltip, Badge, Avatar, Dropdown, Space } from 'antd';
+import { Layout, Menu, Button, Drawer, Tooltip, Badge, Avatar, Dropdown, Space, Typography } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   HomeOutlined,
@@ -13,6 +20,9 @@ import {
   UserOutlined,
   LogoutOutlined,
   GithubOutlined,
+  ScissorOutlined,
+  AppstoreOutlined,
+  FireOutlined
 } from '@ant-design/icons';
 import { useTheme } from '@/context/ThemeContext';
 import { useAppStore } from '@/store/app';
@@ -20,6 +30,7 @@ import NotificationCenter from '@/components/NotificationCenter';
 import styles from './MainLayout.module.less';
 
 const { Header, Sider, Content } = Layout;
+const { Text } = Typography;
 
 // 页脚组件
 const Footer = () => (
@@ -33,7 +44,7 @@ const Footer = () => (
         <a href="/terms" target="_blank">使用条款</a>
       </div>
       <div className={styles.copyright}>
-        BlazeCut © {new Date().getFullYear()} Created by Agions
+        <Text type="secondary">BlazeCut © {new Date().getFullYear()} Created by Agions</Text>
       </div>
     </div>
   </div>
@@ -105,6 +116,7 @@ const MainLayout: React.FC = () => {
     },
   ];
 
+  // 导航菜单项
   const menuItems = [
     {
       key: '/',
@@ -114,12 +126,25 @@ const MainLayout: React.FC = () => {
     {
       key: '/projects',
       icon: <VideoCameraOutlined />,
-      label: '项目',
+      label: '项目管理',
+    },
+    {
+      key: '/editor',
+      icon: <ScissorOutlined />,
+      label: '视频剪辑',
     },
     {
       key: '/scripts',
       icon: <FileTextOutlined />,
-      label: '脚本',
+      label: '剧本管理',
+    },
+    {
+      key: '/templates',
+      icon: <AppstoreOutlined />,
+      label: '模板中心',
+    },
+    {
+      type: 'divider'
     },
     {
       key: '/settings',
@@ -127,6 +152,18 @@ const MainLayout: React.FC = () => {
       label: '设置',
     },
   ];
+
+  // 当前路径对应的标题
+  const getPageTitle = () => {
+    const path = location.pathname;
+    if (path === '/') return '首页';
+    if (path.startsWith('/projects')) return '项目管理';
+    if (path.startsWith('/editor')) return '视频剪辑';
+    if (path.startsWith('/scripts')) return '剧本管理';
+    if (path.startsWith('/templates')) return '模板中心';
+    if (path.startsWith('/settings')) return '系统设置';
+    return 'BlazeCut';
+  };
 
   const renderMenu = () => (
     <Menu
@@ -157,8 +194,14 @@ const MainLayout: React.FC = () => {
             />
           )}
           <div className={styles.logo} onClick={() => navigate('/')}>
-            BlazeCut
+            <FireOutlined className={styles.logoIcon} />
+            <span className={styles.logoText}>BlazeCut</span>
           </div>
+          {!isMobile && (
+            <div className={styles.pageTitle}>
+              {getPageTitle()}
+            </div>
+          )}
         </div>
         <div className={styles.headerRight}>
           <Tooltip title={isDarkMode ? "切换到亮色模式" : "切换到暗色模式"}>
@@ -171,7 +214,7 @@ const MainLayout: React.FC = () => {
           </Tooltip>
           
           {tauriSupported && (
-            <Tooltip title="通知">
+            <Tooltip title="通知中心">
               <Badge count={notifications} size="small" offset={[-2, 2]}>
                 <Button 
                   type="text" 
@@ -194,15 +237,16 @@ const MainLayout: React.FC = () => {
           </Dropdown>
         </div>
       </Header>
-      <Layout>
+      <Layout className={styles.mainContainer}>
         {!isMobile ? (
           <Sider 
-            width={200} 
+            width={220} 
             className={styles.sider}
             collapsible
             collapsed={collapsed}
             onCollapse={setCollapsed}
             theme={isDarkMode ? 'dark' : 'light'}
+            breakpoint="lg"
           >
             {renderMenu()}
           </Sider>
@@ -210,14 +254,15 @@ const MainLayout: React.FC = () => {
           <Drawer
             title={
               <div className={styles.drawerHeader}>
-                <div className={styles.logo}>BlazeCut</div>
+                <FireOutlined className={styles.logoIcon} />
+                <span className={styles.logoText}>BlazeCut</span>
               </div>
             }
             placement="left"
             onClose={() => setMobileDrawerOpen(false)}
             open={mobileDrawerOpen}
             bodyStyle={{ padding: 0 }}
-            width={240}
+            width={260}
             className={styles.mobileDrawer}
             closeIcon={null}
           >
@@ -228,7 +273,7 @@ const MainLayout: React.FC = () => {
           <Content 
             className={styles.content}
             style={{
-              marginLeft: isMobile ? 0 : (collapsed ? 80 : 200)
+              marginLeft: isMobile ? 0 : (collapsed ? 80 : 220)
             }}
           >
             <div className={styles.contentInner}>

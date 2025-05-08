@@ -1,349 +1,535 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, Steps, Space, message, Alert, Typography, Select, Tooltip } from 'antd';
-import { ArrowLeftOutlined, SaveOutlined, VideoCameraOutlined, FormOutlined, RobotOutlined, InfoCircleOutlined } from '@ant-design/icons';
-import { v4 as uuidv4 } from 'uuid';
-import { useStore } from '@/store';
+import { useNavigate, useParams } from 'react-router-dom';
+import { 
+  Card, 
+  Form, 
+  Input, 
+  Button, 
+  message, 
+  Steps, 
+  Divider, 
+  Typography,
+  Space, 
+  Spin, 
+  Result
+} from 'antd';
+import { ArrowLeftOutlined, SaveOutlined, VideoCameraOutlined, EditOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import VideoSelector from '@/components/VideoSelector';
-import { saveProjectToFile } from '@/services/tauriService';
-import { AI_MODEL_INFO, AIModelType } from '@/types';
+import ScriptEditor from '@/components/ScriptEditor';
+import { VideoMetadata, VideoSegment, analyzeVideo, extractKeyFrames } from '@/services/videoService';
+import { generateScriptWithAI, analyzeKeyFramesWithAI } from '@/services/aiService';
+import { loadProjectFromFile, saveProjectToFile } from '@/services/tauriService';
+import { v4 as uuid } from 'uuid';
 import styles from './ProjectEdit.module.less';
 
-const { TextArea } = Input;
-const { Title, Text } = Typography;
-const { Option } = Select;
+const { Title, Paragraph } = Typography;
+const { Step } = Steps;
 
+interface ProjectData {
+  id: string;
+  name: string;
+  description: string;
+  videoPath: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: VideoMetadata;
+  keyFrames?: string[];
+  script?: VideoSegment[];
+}
+
+/**
+ * 项目编辑页面
+ * 支持创建新项目或编辑现有项目
+ */
 const ProjectEdit: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { projectId } = useParams();
   const navigate = useNavigate();
-  const { projects, addProject, updateProject, selectedAIModel, aiModelsSettings, setSelectedAIModel } = useStore();
   const [form] = Form.useForm();
+  
   const [currentStep, setCurrentStep] = useState(0);
-  const [videoPath, setVideoPath] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isEdit, setIsEdit] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [project, setProject] = useState<ProjectData | null>(null);
+  const [videoSelected, setVideoSelected] = useState(false);
+  const [videoPath, setVideoPath] = useState<string>('');
+  const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(null);
+  const [keyFrames, setKeyFrames] = useState<string[]>([]);
+  const [scriptSegments, setScriptSegments] = useState<VideoSegment[]>([]);
+  const [isNewProject, setIsNewProject] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<AIModelType>(selectedAIModel);
 
-  // 如果是编辑模式，加载项目数据
+  // 初始化 - 加载项目数据（如果是编辑现有项目）
   useEffect(() => {
-    if (id) {
-      const project = projects.find(p => p.id === id);
-      if (project) {
-        form.setFieldsValue({
-          name: project.name,
-          description: project.description,
-          aiModel: project.aiModel?.key || selectedAIModel
-        });
-        setVideoPath(project.videoUrl);
-        setIsEdit(true);
-        setCurrentStep(1); // 跳过选择视频步骤
-        if (project.aiModel?.key) {
-          setSelectedModel(project.aiModel.key as AIModelType);
-        }
-      } else {
-        setError('找不到项目');
-        navigate('/projects');
-      }
-    } else {
-      // 新建项目时，设置默认选择的AI模型
-      form.setFieldsValue({
-        aiModel: selectedAIModel
-      });
-    }
-  }, [id, projects, form, navigate, selectedAIModel]);
-
-  const handleVideoSelected = (path: string, filename: string) => {
-    try {
-      setError(null);
-      setVideoPath(path);
-      // 从文件名预填充项目名称
-      const projectName = filename.replace(/\.[^/.]+$/, ""); // 移除扩展名
-      form.setFieldsValue({ name: projectName });
+    if (projectId) {
+      setInitialLoading(true);
+      setIsNewProject(false);
       
-      // 前进到下一步
+      loadProjectFromFile(projectId)
+        .then(projectData => {
+          setProject(projectData);
+          form.setFieldsValue({
+            name: projectData.name,
+            description: projectData.description
+          });
+          
+          if (projectData.videoPath) {
+            setVideoPath(projectData.videoPath);
+            setVideoSelected(true);
+          }
+          
+          if (projectData.metadata) {
+            setVideoMetadata(projectData.metadata);
+          }
+          
+          if (projectData.keyFrames && projectData.keyFrames.length > 0) {
+            setKeyFrames(projectData.keyFrames);
+          }
+          
+          if (projectData.script && projectData.script.length > 0) {
+            setScriptSegments(projectData.script);
+            // 如果已经有脚本，直接进入脚本编辑步骤
+            setCurrentStep(2);
+          } else if (projectData.videoPath) {
+            // 如果只有视频，进入视频分析步骤
+            setCurrentStep(1);
+          }
+          
+          setError(null);
+        })
+        .catch(err => {
+          console.error('加载项目失败:', err);
+          setError('加载项目失败，请确认项目文件是否存在');
+          message.error('加载项目失败');
+        })
+        .finally(() => {
+          setInitialLoading(false);
+        });
+    }
+  }, [projectId, form]);
+
+  // 处理视频选择
+  const handleVideoSelect = (filePath: string, metadata?: VideoMetadata) => {
+    setVideoPath(filePath);
+    setVideoSelected(true);
+    
+    if (metadata) {
+      setVideoMetadata(metadata);
+    }
+    
+    // 自动进入下一步
+    if (currentStep === 0) {
       setCurrentStep(1);
-    } catch (error) {
-      console.error('处理视频选择失败:', error);
-      setError('处理视频选择失败，请重试');
     }
   };
 
-  const handleSubmit = async () => {
+  // 处理视频移除
+  const handleVideoRemove = () => {
+    setVideoPath('');
+    setVideoSelected(false);
+    setVideoMetadata(null);
+    setKeyFrames([]);
+    setScriptSegments([]);
+  };
+
+  // 处理视频分析
+  const handleAnalyzeVideo = async () => {
+    if (!videoPath) {
+      message.error('请先选择视频');
+      return;
+    }
+
     try {
       setLoading(true);
-      setError(null);
-      const values = await form.validateFields();
+      message.info('正在分析视频，请稍候...');
       
-      if (!videoPath) {
-        setError('请先选择视频文件');
-        setLoading(false);
-        return;
+      // 如果还没有元数据，获取视频元数据
+      let metadata = videoMetadata;
+      if (!metadata) {
+        metadata = await analyzeVideo(videoPath);
+        setVideoMetadata(metadata);
       }
       
-      // 检查选择的AI模型是否有API密钥
-      const modelKey = values.aiModel as AIModelType;
-      const modelSettings = aiModelsSettings[modelKey];
+      // 提取关键帧
+      message.info('正在提取关键帧...');
+      const frames = await extractKeyFrames(videoPath);
+      setKeyFrames(frames);
       
-      if (!modelSettings.enabled) {
-        setError(`${AI_MODEL_INFO[modelKey].name}模型尚未启用，请在设置中配置API密钥`);
-        setLoading(false);
-        return;
-      }
+      // 分析关键帧
+      message.info('正在分析关键帧内容...');
+      const frameDescriptions = await analyzeKeyFramesWithAI(frames);
       
-      const aiModel = {
-        ...AI_MODEL_INFO[modelKey],
-        apiKey: modelSettings.apiKey
-      };
-      
-      if (isEdit && id) {
-        // 更新现有项目
-        const project = projects.find(p => p.id === id);
-        if (project) {
-          const updatedProject = {
-            ...project,
-            name: values.name,
-            description: values.description || '',
-            videoUrl: videoPath,
-            aiModel,
-            updatedAt: new Date().toISOString()
-          };
-          
-          try {
-            // 先保存到文件
-            await saveProjectToFile(updatedProject);
-            // 更新状态
-            updateProject(updatedProject);
-            message.success('项目更新成功');
-            navigate(`/projects/${id}`);
-          } catch (error) {
-            console.error('保存项目文件失败:', error);
-            setError('保存项目文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
-            return;
-          }
+      // 生成脚本
+      message.info('正在根据视频内容生成脚本...');
+      const scriptText = await generateScriptWithAI(
+        metadata,
+        frameDescriptions,
+        {
+          style: '自然流畅',
+          tone: '专业',
+          length: 'medium',
+          purpose: '内容展示'
         }
-      } else {
-        // 创建新项目
-        const newProject = {
-          id: uuidv4(),
-          name: values.name,
-          description: values.description || '',
-          videoUrl: videoPath,
-          analysis: undefined,
-          scripts: [],
-          aiModel,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        
-        try {
-          // 先保存到文件
-          await saveProjectToFile(newProject);
-          // 更新状态
-          addProject(newProject);
-          // 更新默认AI模型
-          setSelectedAIModel(modelKey);
-          message.success('项目创建成功');
-          navigate(`/projects/${newProject.id}`);
-        } catch (error) {
-          console.error('保存项目文件失败:', error);
-          setError('保存项目文件失败: ' + (error instanceof Error ? error.message : '未知错误'));
-          return;
-        }
-      }
+      );
+      
+      // 解析脚本文本为段落
+      const script = parseScriptText(scriptText);
+      setScriptSegments(script);
+      
+      message.success('视频分析完成');
+      
+      // 进入下一步
+      setCurrentStep(2);
     } catch (error) {
-      console.error('保存项目失败:', error);
-      setError(error instanceof Error ? error.message : '保存失败，请重试');
+      console.error('视频分析失败:', error);
+      message.error('视频分析失败，请稍后再试');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAIModelChange = (value: AIModelType) => {
-    setSelectedModel(value);
-    
-    // 检查是否有API密钥
-    const modelSettings = aiModelsSettings[value];
-    if (!modelSettings.enabled) {
-      message.warning(`您尚未配置${AI_MODEL_INFO[value].name}的API密钥，请前往"设置"页面进行配置`);
+  // 解析脚本文本为片段数组
+  const parseScriptText = (text: string): VideoSegment[] => {
+    try {
+      const lines = text.split('\n').filter(line => line.trim().length > 0);
+      const resultSegments: VideoSegment[] = [];
+      
+      let currentSegment: VideoSegment | null = null;
+      
+      for (const line of lines) {
+        // 尝试匹配时间轴格式 [00:00 - 00:00] 文本内容
+        const timeMatch = line.match(/\[(\d{1,2}:\d{2}(?::\d{2})?) - (\d{1,2}:\d{2}(?::\d{2})?)\]/);
+        
+        if (timeMatch) {
+          // 解析时间
+          const startTime = parseTimeString(timeMatch[1]);
+          const endTime = parseTimeString(timeMatch[2]);
+          
+          // 提取内容（时间轴后面的文本）
+          const content = line.substring(timeMatch[0].length).trim();
+          
+          currentSegment = {
+            start: startTime,
+            end: endTime,
+            type: 'narration',
+            content
+          };
+          
+          resultSegments.push(currentSegment);
+        } else if (currentSegment) {
+          // 如果没有匹配到时间轴，但有当前片段，将这行添加到当前片段的内容中
+          currentSegment.content += '\n' + line.trim();
+        }
+      }
+      
+      return resultSegments;
+    } catch (error) {
+      console.error('解析脚本失败:', error);
+      return [];
     }
+  };
+
+  // 解析时间字符串为秒数
+  const parseTimeString = (timeString: string): number => {
+    const parts = timeString.split(':').map(Number);
+    
+    if (parts.length === 3) {
+      // 格式: HH:MM:SS
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    } else if (parts.length === 2) {
+      // 格式: MM:SS
+      return parts[0] * 60 + parts[1];
+    }
+    
+    return 0;
+  };
+
+  // 保存项目
+  const handleSaveProject = async () => {
+    try {
+      // 验证表单
+      await form.validateFields();
+      
+      // 检查视频是否已选择
+      if (!videoPath) {
+        message.error('请先选择视频文件');
+        return;
+      }
+      
+      setSaving(true);
+      
+      // 准备项目数据
+      const formData = form.getFieldsValue();
+      const now = new Date().toISOString();
+      
+      const projectData: ProjectData = {
+        id: project?.id || uuid(),
+        name: formData.name,
+        description: formData.description,
+        videoPath: videoPath,
+        createdAt: project?.createdAt || now,
+        updatedAt: now,
+        metadata: videoMetadata || undefined,
+        keyFrames: keyFrames.length > 0 ? keyFrames : undefined,
+        script: scriptSegments.length > 0 ? scriptSegments : undefined
+      };
+      
+      // 保存项目文件
+      await saveProjectToFile(projectData.id, projectData);
+      
+      message.success('项目保存成功');
+      setProject(projectData);
+      
+      // 如果是创建新项目，保存后跳转到项目详情页
+      if (isNewProject) {
+        navigate(`/project/${projectData.id}`);
+      }
+    } catch (error) {
+      console.error('保存项目失败:', error);
+      message.error('保存项目失败，请稍后再试');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // 返回上一页
+  const handleBack = () => {
+    navigate(-1);
+  };
+
+  // 导出脚本
+  const handleExportScript = (format: string) => {
+    message.info(`导出脚本为 ${format.toUpperCase()} 格式`);
+    // 这里实现脚本导出功能
+  };
+
+  // 渲染步骤内容
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 0:
+        return (
+          <Card className={styles.stepCard}>
+            <Title level={4}>
+              <VideoCameraOutlined /> 选择视频
+            </Title>
+            <Paragraph>
+              请选择要编辑的视频文件，支持 MP4、MOV、AVI 等常见格式。
+            </Paragraph>
+            <VideoSelector
+              initialVideoPath={videoPath}
+              onVideoSelect={handleVideoSelect}
+              onVideoRemove={handleVideoRemove}
+              loading={loading}
+            />
+            <div className={styles.stepActions}>
+              <Button 
+                type="primary" 
+                onClick={() => setCurrentStep(1)} 
+                disabled={!videoSelected}
+              >
+                下一步
+              </Button>
+            </div>
+          </Card>
+        );
+      
+      case 1:
+        return (
+          <Card className={styles.stepCard}>
+            <Title level={4}>
+              <EditOutlined /> 分析视频内容
+            </Title>
+            <Paragraph>
+              分析视频获取关键帧和内容信息，生成脚本草稿。
+            </Paragraph>
+            
+            <Spin spinning={loading} tip="正在分析视频...">
+              <div className={styles.analyzeContent}>
+                <VideoSelector
+                  initialVideoPath={videoPath}
+                  onVideoSelect={handleVideoSelect}
+                  onVideoRemove={handleVideoRemove}
+                  loading={false}
+                />
+                
+                {keyFrames.length > 0 && (
+                  <div className={styles.keyFrames}>
+                    <Title level={5}>已提取 {keyFrames.length} 个关键帧</Title>
+                    <div className={styles.keyFramesList}>
+                      {keyFrames.map((frame, index) => (
+                        <img 
+                          key={index} 
+                          src={frame} 
+                          alt={`关键帧 ${index + 1}`} 
+                          className={styles.keyFrameImage}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Spin>
+            
+            <div className={styles.stepActions}>
+              <Space>
+                <Button onClick={() => setCurrentStep(0)}>
+                  上一步
+                </Button>
+                {scriptSegments.length > 0 ? (
+                  <Button type="primary" onClick={() => setCurrentStep(2)}>
+                    下一步
+                  </Button>
+                ) : (
+                  <Button 
+                    type="primary" 
+                    onClick={handleAnalyzeVideo}
+                    loading={loading}
+                  >
+                    分析视频
+                  </Button>
+                )}
+              </Space>
+            </div>
+          </Card>
+        );
+      
+      case 2:
+        return (
+          <Card className={styles.stepCard}>
+            <Title level={4}>
+              <EditOutlined /> 编辑脚本
+            </Title>
+            <Paragraph>
+              编辑和优化自动生成的脚本内容，可以添加、删除或修改片段。
+            </Paragraph>
+            
+            <ScriptEditor
+              videoPath={videoPath}
+              initialSegments={scriptSegments}
+              onSave={setScriptSegments}
+              onExport={handleExportScript}
+            />
+            
+            <div className={styles.stepActions}>
+              <Space>
+                <Button onClick={() => setCurrentStep(1)}>
+                  上一步
+                </Button>
+                <Button 
+                  type="primary" 
+                  onClick={handleSaveProject}
+                  loading={saving}
+                >
+                  保存项目
+                </Button>
+              </Space>
+            </div>
+          </Card>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
+  // 如果加载失败，显示错误信息
+  if (error) {
+    return (
+      <Result
+        status="error"
+        title="加载失败"
+        subTitle={error}
+        extra={[
+          <Button key="back" onClick={handleBack}>
+            返回
+          </Button>
+        ]}
+      />
+    );
   }
 
-  const steps = [
-    {
-      title: '选择视频',
-      content: (
-        <div style={{padding: '20px 0'}}>
-          <VideoSelector onVideoSelected={handleVideoSelected} />
+  return (
+    <div className={styles.container}>
+      <Spin spinning={initialLoading} tip="加载项目中...">
+        <div className={styles.header}>
+          <Button 
+            type="text" 
+            icon={<ArrowLeftOutlined />} 
+            onClick={handleBack}
+          >
+            返回
+          </Button>
+          <Title level={3}>
+            {isNewProject ? '创建新项目' : '编辑项目'}
+          </Title>
+          <Button 
+            type="primary" 
+            icon={<SaveOutlined />} 
+            onClick={handleSaveProject}
+            loading={saving}
+          >
+            保存项目
+          </Button>
         </div>
-      ),
-      icon: <VideoCameraOutlined />
-    },
-    {
-      title: '项目信息',
-      content: (
-        <div className={styles.formContainer}>
+        
+        <Card className={styles.card}>
           <Form
             form={form}
             layout="vertical"
-            initialValues={{ name: '', description: '', aiModel: selectedAIModel }}
+            initialValues={{
+              name: '',
+              description: ''
+            }}
           >
-            {error && (
-              <Form.Item>
-                <Alert
-                  message="错误"
-                  description={error}
-                  type="error"
-                  showIcon
-                  closable
-                  onClose={() => setError(null)}
-                />
-              </Form.Item>
-            )}
-  
             <Form.Item
               name="name"
-              label={<span className="form-label">项目名称</span>}
-              rules={[
-                { required: true, message: '请输入项目名称' },
-                { max: 50, message: '项目名称不能超过50个字符' }
-              ]}
+              label="项目名称"
+              rules={[{ required: true, message: '请输入项目名称' }]}
             >
-              <Input placeholder="输入项目名称" size="large" style={{ fontSize: '16px' }} className="dark-mode-input" />
-            </Form.Item>
-            
-            {videoPath && (
-              <Form.Item 
-                label={<span className="form-label">视频文件</span>}
-              >
-                <Text type="secondary" style={{wordBreak: 'break-all', fontSize: '14px', lineHeight: '1.8' }} className="file-path-text">
-                  {videoPath}
-                </Text>
-                {!isEdit && (
-                  <Button 
-                    type="link" 
-                    onClick={() => setCurrentStep(0)}
-                    style={{paddingLeft: 0}}
-                  >
-                    重新选择
-                  </Button>
-                )}
-              </Form.Item>
-            )}
-            
-            <Form.Item
-              name="aiModel"
-              label={
-                <span className="form-label">
-                  AI 模型选择 
-                  <Tooltip title="选择用于生成脚本的国产大模型">
-                    <InfoCircleOutlined style={{ marginLeft: 8 }} />
-                  </Tooltip>
-                </span>
-              }
-              rules={[{ required: true, message: '请选择AI模型' }]}
-            >
-              <Select 
-                placeholder="选择AI模型" 
-                onChange={handleAIModelChange}
-                className="dark-mode-input"
-              >
-                {Object.entries(AI_MODEL_INFO).map(([key, model]) => (
-                  <Option 
-                    key={key} 
-                    value={key}
-                    disabled={!aiModelsSettings[key as AIModelType].enabled}
-                  >
-                    <div className={styles.modelOption}>
-                      <RobotOutlined className={styles.modelIcon} />
-                      <span>{model.name}</span>
-                      <span className={styles.modelProvider}>({model.provider})</span>
-                      {!aiModelsSettings[key as AIModelType].enabled && (
-                        <span className={styles.modelDisabled}>未配置</span>
-                      )}
-                    </div>
-                  </Option>
-                ))}
-              </Select>
+              <Input placeholder="请输入项目名称" maxLength={100} />
             </Form.Item>
             
             <Form.Item
               name="description"
-              label={<span className="form-label">项目描述</span>}
-              rules={[
-                { max: 500, message: '项目描述不能超过500个字符' }
-              ]}
+              label="项目描述"
             >
-              <TextArea 
-                placeholder="输入项目描述（选填）"
-                rows={4}
-                style={{ fontSize: '14px' }}
-                className="dark-mode-input"
+              <Input.TextArea 
+                placeholder="请输入项目描述（选填）" 
+                rows={2} 
+                maxLength={500}
               />
             </Form.Item>
           </Form>
-        </div>
-      ),
-      icon: <FormOutlined />
-    },
-  ];
-
-  return (
-    <div className={styles.container}>
-      <Card 
-        className={styles.card}
-        title={
-          <div className={styles.header}>
-            <Button 
-              type="text" 
-              icon={<ArrowLeftOutlined />} 
-              onClick={() => navigate(-1)}
-              className={styles.backButton}
-            >
-              返回
-            </Button>
-            <Title level={4} style={{ margin: 0 }}>
-              {isEdit ? '编辑项目' : '创建新项目'}
-            </Title>
-          </div>
-        }
-      >
-        <div className={styles.content}>
-          <Steps
-            current={currentStep}
-            items={steps.map(item => ({
-              title: item.title,
-              icon: item.icon,
-            }))}
-            className={styles.steps}
+        </Card>
+        
+        <div className={styles.stepsContainer}>
+          <Steps 
+            current={currentStep} 
+            onChange={setCurrentStep}
+            items={[
+              {
+                title: '选择视频',
+                icon: <VideoCameraOutlined />,
+                description: '上传视频文件',
+              },
+              {
+                title: '分析内容',
+                icon: <EditOutlined />,
+                description: '分析视频生成脚本',
+              },
+              {
+                title: '编辑脚本',
+                icon: <CheckCircleOutlined />,
+                description: '编辑和优化脚本',
+              },
+            ]}
           />
-          
-          <div className={styles.stepsContent}>
-            {steps[currentStep].content}
-          </div>
-          
-          <div className={styles.stepsAction}>
-            {currentStep > 0 && (
-              <Button 
-                style={{ margin: '0 8px' }} 
-                onClick={() => setCurrentStep(currentStep - 1)}
-              >
-                上一步
-              </Button>
-            )}
-            {currentStep === steps.length - 1 && (
-              <Button 
-                type="primary" 
-                icon={<SaveOutlined />}
-                onClick={handleSubmit}
-                loading={loading}
-              >
-                {isEdit ? '保存更改' : '创建项目'}
-              </Button>
-            )}
-          </div>
         </div>
-      </Card>
+        
+        <div className={styles.stepsContent}>
+          {renderStepContent()}
+        </div>
+      </Spin>
     </div>
   );
 };
